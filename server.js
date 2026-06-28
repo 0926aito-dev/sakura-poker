@@ -275,20 +275,28 @@ async function handleApi(req, res, pathname, query) {
       if (!username) return sendJson(res, 401, { error: "認証エラーです。再度ログインしてください。" });
 
       const names = body.names;
-      if (!SakuraHandEngine.isValidCustomNames(names)) {
-        return sendJson(res, 400, { error: "カードは2〜5枚、重複なしで実在するメンバー名を指定してください。" });
+      const poolType = body.poolType === "all" ? "all" : "active";
+
+      if (!SakuraHandEngine.isValidCustomNamesForPool(names, poolType)) {
+        return sendJson(res, 400, {
+          error: poolType === "active"
+            ? "カードは2〜5枚、重複なしで実在する在籍メンバーの名前を指定してください(卒業済みメンバーは「全メンバー版」で指定してください)。"
+            : "カードは2〜5枚、重複なしで実在するメンバー名を指定してください。"
+        });
       }
 
       const label = (body.label || "").toString().trim().slice(0, 30) || `オリジナル役(${names.join("・")})`;
       const hand = {
         id: `custom_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
         label,
-        names
+        names,
+        poolType
       };
 
-      // 1アカウントにつき、枚数(2/3/4/5枚)ごとに登録できるオリジナル役は1つまで。
-      // 同じ枚数で再登録した場合は、既存の役を新しい役で置き換える。
-      db.users[username].hands = getUserHands(username).filter(h => h.names.length !== names.length);
+      // 1アカウントにつき、枚数(2/3/4/5枚)×プール種別(在籍のみ/全メンバー)ごとに
+      // 登録できるオリジナル役は1つまで(同じ枚数・同じプール種別で再登録すると上書き)。
+      db.users[username].hands = getUserHands(username)
+        .filter(h => !(h.names.length === names.length && (h.poolType || "active") === poolType));
       db.users[username].hands.push(hand);
       saveDb();
       return sendJson(res, 200, { hands: getUserHands(username) });
@@ -574,7 +582,11 @@ function startGameForWs(ws) {
   }
   if (room.started) return;
 
-  const customHandsPool = room.usernames.flatMap(u => getUserHands(u));
+  // 在籍のみデッキでは「在籍のみ版」のオリジナル役だけを使用。
+  // 全メンバーデッキでは「在籍のみ版」「全メンバー版」の両方を使用できる。
+  const customHandsPool = room.usernames
+    .flatMap(u => getUserHands(u))
+    .filter(h => room.deckPoolName === "all" || (h.poolType || "active") === "active");
   const deckPool = SakuraHandEngine.DECKS[room.deckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS;
 
   room.table = SakuraHandEngine.createTable({

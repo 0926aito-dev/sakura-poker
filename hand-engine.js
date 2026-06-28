@@ -83,6 +83,19 @@
     return names.every(n => cardNames.includes(n));
   }
 
+  /*
+    オリジナル役は「在籍メンバーのみ版」と「卒業生も込みの版」を枚数ごとに
+    1つずつ登録できます。poolTypeが"active"の場合は在籍メンバーのみで
+    構成されているかを追加で検証します。
+  */
+  function isValidCustomNamesForPool(names, poolType) {
+    if (!isValidCustomNames(names)) return false;
+    if (poolType === "active") {
+      return names.every(n => ACTIVE_MEMBERS.some(m => m.name === n));
+    }
+    return true;
+  }
+
   function handMatchesType(cards, handDef) {
     if (handDef.type === "high") return true;
     if (handDef.type === "custom") return matchesCustomHand(cards, handDef.names);
@@ -268,13 +281,14 @@
       rank,
       score,
       name: HAND_NAMES[rank],
-      detail: cards.map(card => `${card.name}(${card.gen}期)`).join(" / ")
+      detail: cards.map(card => `${card.name}(${card.gen}期)`).join(" / "),
+      cards
     };
   }
 
   function evaluateBestHand(cards, HAND_DEFS, HAND_NAMES) {
     const fiveCardCombos = combinations(cards, 5);
-    let best = { rank: 0, score: -1, name: "ハイカード", detail: "" };
+    let best = { rank: 0, score: -1, name: "ハイカード", detail: "", cards: [] };
 
     for (const combo of fiveCardCombos) {
       const result = evaluateFiveCards(combo, HAND_DEFS, HAND_NAMES);
@@ -525,7 +539,7 @@
         table.players[w.i].chips += share + (idx < remainder ? 1 : 0);
       });
 
-      const summary = evals.map(e => `${e.name}:「${e.evalResult.name}」`).join(" / ");
+      const summary = evals.map(e => `${e.name}:「${e.evalResult.name}」(${e.evalResult.detail})`).join("<br>");
       const winnerNames = winners.map(w => w.name).join("・");
 
       table.message = winners.length > 1
@@ -535,7 +549,13 @@
       table.pot = 0;
       table.handPhase = "result";
       table.lastResult = {
-        winners: winners.map(w => ({ seat: w.i, name: w.name, handName: w.evalResult.name })),
+        winners: winners.map(w => ({
+          seat: w.i,
+          name: w.name,
+          handName: w.evalResult.name,
+          cards: w.evalResult.cards,
+          detail: w.evalResult.detail
+        })),
         uncontested: false
       };
       notifyChange();
@@ -740,6 +760,7 @@
     countBy,
     comb,
     isValidCustomNames,
+    isValidCustomNamesForPool,
     matchesCustomHand,
     handMatchesType,
     calcHandProbability,

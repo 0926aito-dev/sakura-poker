@@ -166,7 +166,8 @@
       <p class="lead">
         <b id="editorWelcome"></b><br>
         <span id="memberCountText">全メンバー</span>から<b>2枚・3枚・4枚・5枚</b>のいずれかでオリジナル役を登録できます。<br>
-        各枚数ごとに登録できるのは1つまでです(同じ枚数で登録すると上書きされます)。<br>
+        枚数ごとに「在籍メンバーのみ版」「卒業生も含む全メンバー版」をそれぞれ1つまで登録できます
+        (同じ枚数・同じ版で登録すると上書きされます)。<br>
         強さは発生確率(低いほど強い)から自動で決まり、同期系の役と合わせてランキングされます。
         あなたが作成した役は、あなたのアカウントに保存され、CPU対戦・オンライン対戦のどちらでも使われます。
       </p>
@@ -184,12 +185,20 @@
       </div>
 
       <div class="field">
-        <label>カードの枚数を選択(2/3/4/5枚それぞれ1つまで登録できます。同じ枚数で登録すると上書きされます)</label>
+        <label>カードの枚数を選択</label>
         <div class="size-toggle" id="sizeToggle">
           <button data-size="2" class="size-btn active">2枚</button>
           <button data-size="3" class="size-btn">3枚</button>
           <button data-size="4" class="size-btn">4枚</button>
           <button data-size="5" class="size-btn">5枚</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>役の種類を選択(在籍メンバーのみ版は卒業済みメンバーを選べません)</label>
+        <div class="size-toggle" id="poolTypeToggle">
+          <button data-pool="active" class="size-btn active">在籍メンバーのみ版</button>
+          <button data-pool="all" class="size-btn">全メンバー版(卒業生も含む)</button>
         </div>
       </div>
 
@@ -217,7 +226,7 @@
     </div>
 
     <div class="panel">
-      <h2>現在の役の強さランキング</h2>
+      <h2>現在の役の強さランキング(<span id="rankPoolLabel">在籍メンバーのみ版</span>)</h2>
       <div class="rank-list" id="rankList"></div>
     </div>
   </div>
@@ -242,6 +251,7 @@ const dom = {
   backBtn: $("backBtn"),
   labelInput: $("labelInput"),
   sizeToggle: $("sizeToggle"),
+  poolTypeToggle: $("poolTypeToggle"),
   memberGrid: $("memberGrid"),
   selectedCount: $("selectedCount"),
   previewBox: $("previewBox"),
@@ -249,7 +259,8 @@ const dom = {
   registerBtn: $("registerBtn"),
   clearSelectionBtn: $("clearSelectionBtn"),
   customList: $("customList"),
-  rankList: $("rankList")
+  rankList: $("rankList"),
+  rankPoolLabel: $("rankPoolLabel")
 };
 
 let myToken = localStorage.getItem(TOKEN_KEY) || null;
@@ -257,6 +268,7 @@ let myUsername = localStorage.getItem(USERNAME_KEY) || null;
 let myHands = [];
 let selectedNames = [];
 let selectedSize = 2;
+let selectedPoolType = "active";
 
 async function apiCall(pathname, method, body) {
   const res = await fetch(pathname, {
@@ -315,21 +327,38 @@ async function init() {
       updatePreview();
     });
   });
+
+  dom.poolTypeToggle.querySelectorAll(".size-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      selectedPoolType = btn.dataset.pool;
+      dom.poolTypeToggle.querySelectorAll(".size-btn").forEach(b => b.classList.toggle("active", b === btn));
+      if (selectedPoolType === "active") {
+        selectedNames = selectedNames.filter(n => SakuraHandEngine.ACTIVE_MEMBERS.some(m => m.name === n));
+      }
+      dom.editorMessage.textContent = "";
+      renderMemberGrid();
+      renderRanking();
+      updatePreview();
+    });
+  });
 }
 
 function renderMemberGrid() {
   dom.memberGrid.innerHTML = "";
 
   for (const member of SakuraHandEngine.MEMBERS) {
+    const isGraduated = member.status === "graduated";
+    const disabled = selectedPoolType === "active" && isGraduated;
     const chip = document.createElement("div");
     const isSelected = selectedNames.includes(member.name);
-    chip.className = "member-chip" + (isSelected ? " selected" : "");
+    chip.className = "member-chip" + (isSelected ? " selected" : "") + (disabled ? " disabled" : "");
+    if (disabled) { chip.style.opacity = "0.35"; chip.style.cursor = "not-allowed"; }
     chip.innerHTML = `
       <input type="checkbox" ${isSelected ? "checked" : ""} />
       <span>${escapeHTML(member.name)}</span>
-      <span class="gen-tag">${member.gen}期</span>
+      <span class="gen-tag">${member.gen}期${isGraduated ? "・卒業" : ""}</span>
     `;
-    chip.addEventListener("click", () => toggleMember(member.name));
+    if (!disabled) chip.addEventListener("click", () => toggleMember(member.name));
     dom.memberGrid.appendChild(chip);
   }
 }
@@ -367,28 +396,43 @@ function updatePreview() {
     id: "__preview__",
     label: dom.labelInput.value.trim() || `オリジナル役(${selectedNames.join("・")})`,
     type: "custom",
-    names: [...selectedNames]
+    names: [...selectedNames],
+    poolType: selectedPoolType
   };
 
+  const deckPool = SakuraHandEngine.DECKS[selectedPoolType];
   const ranking = buildRankingWithExtra(tempHand);
-  const prob = SakuraHandEngine.calcHandProbability(tempHand);
+  const prob = SakuraHandEngine.calcHandProbability(tempHand, deckPool);
   const strongestFirst = [...ranking].reverse();
   const positionFromTop = strongestFirst.findIndex(h => h.id === "__preview__") + 1;
-  const existing = myHands.find(h => h.names.length === selectedSize);
+  const existing = myHands.find(h => h.names.length === selectedSize && (h.poolType || "active") === selectedPoolType);
+  const poolLabel = selectedPoolType === "all" ? "全メンバー版" : "在籍メンバーのみ版";
 
   dom.previewBox.innerHTML = `
-    選択カード：<b>${selectedNames.map(escapeHTML).join(" / ")}</b><br>
+    選択カード：<b>${selectedNames.map(escapeHTML).join(" / ")}</b>(${poolLabel})<br>
     発生確率：<b>${(prob * 100).toFixed(4)}%</b><br>
     想定ランク：<b>全${ranking.length}役中 上から${positionFromTop}番目</b>(数値が小さいほど強い)
-    ${existing ? `<br><span style="color:var(--red);">※ ${selectedSize}枚の役「${escapeHTML(existing.label)}」は登録時に上書きされます。</span>` : ""}
+    ${existing ? `<br><span style="color:var(--red);">※ ${selectedSize}枚・${poolLabel}の役「${escapeHTML(existing.label)}」は登録時に上書きされます。</span>` : ""}
   `;
 }
 
+function buildRankingForPool(poolType) {
+  const deckPool = SakuraHandEngine.DECKS[poolType];
+  const sameContextHands = myHands.filter(h => poolType === "all" || (h.poolType || "active") === "active");
+  return SakuraHandEngine.buildHandDefs(sameContextHands, deckPool).HAND_DEFS;
+}
+
 function buildRankingWithExtra(extraHand) {
-  const pool = extraHand
-    ? [...myHands.filter(h => h.names.length !== extraHand.names.length), extraHand]
-    : myHands;
-  return SakuraHandEngine.buildHandDefs(pool).HAND_DEFS;
+  if (!extraHand) return buildRankingForPool(selectedPoolType);
+
+  const poolType = extraHand.poolType;
+  const deckPool = SakuraHandEngine.DECKS[poolType];
+  const sameContextHands = myHands.filter(h => poolType === "all" || (h.poolType || "active") === "active");
+  const pool = [
+    ...sameContextHands.filter(h => !(h.names.length === extraHand.names.length && (h.poolType || "active") === extraHand.poolType)),
+    extraHand
+  ];
+  return SakuraHandEngine.buildHandDefs(pool, deckPool).HAND_DEFS;
 }
 
 async function registerHand() {
@@ -398,7 +442,7 @@ async function registerHand() {
   dom.editorMessage.textContent = "";
 
   try {
-    const data = await apiCall("/api/hands", "POST", { token: myToken, label, names: [...selectedNames] });
+    const data = await apiCall("/api/hands", "POST", { token: myToken, label, names: [...selectedNames], poolType: selectedPoolType });
     myHands = data.hands || [];
   } catch (e) {
     dom.editorMessage.textContent = e.message;
@@ -434,17 +478,25 @@ function renderCustomList() {
     return;
   }
 
-  const ranking = buildRankingWithExtra(null);
-  const strongestFirst = [...ranking].reverse();
+  const rankingByPool = {
+    active: buildRankingForPool("active"),
+    all: buildRankingForPool("all")
+  };
 
   let rows = "";
   for (const hand of myHands) {
-    const prob = SakuraHandEngine.calcHandProbability({ type: "custom", names: hand.names });
+    const poolType = hand.poolType || "active";
+    const poolLabel = poolType === "all" ? "全メンバー版" : "在籍のみ版";
+    const deckPool = SakuraHandEngine.DECKS[poolType];
+    const ranking = rankingByPool[poolType];
+    const strongestFirst = [...ranking].reverse();
+    const prob = SakuraHandEngine.calcHandProbability({ type: "custom", names: hand.names }, deckPool);
     const position = strongestFirst.findIndex(h => h.id === hand.id) + 1;
 
     rows += `
       <tr>
         <td>${escapeHTML(hand.label)}</td>
+        <td>${poolLabel}</td>
         <td>${hand.names.length}枚：${hand.names.map(escapeHTML).join(" / ")}</td>
         <td>${(prob * 100).toFixed(4)}%</td>
         <td>上から${position}番目 / 全${ranking.length}役</td>
@@ -455,7 +507,7 @@ function renderCustomList() {
 
   dom.customList.innerHTML = `
     <table>
-      <thead><tr><th>役名</th><th>カード</th><th>発生確率</th><th>強さ</th><th></th></tr></thead>
+      <thead><tr><th>役名</th><th>種類</th><th>カード</th><th>発生確率</th><th>強さ</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;
@@ -466,6 +518,7 @@ function renderCustomList() {
 }
 
 function renderRanking() {
+  dom.rankPoolLabel.textContent = selectedPoolType === "all" ? "全メンバー版" : "在籍メンバーのみ版";
   const ranking = buildRankingWithExtra(null);
   const strongestFirst = [...ranking].reverse();
 

@@ -21,28 +21,35 @@
     "gen": 1,
     "initial": "う",
     "group": "R",
-    "status": "active"
+    "status": "graduated"
   },
   {
     "name": "小池美波",
     "gen": 1,
     "initial": "こ",
     "group": "M",
-    "status": "active"
+    "status": "graduated"
   },
   {
     "name": "齋藤冬優花",
     "gen": 1,
     "initial": "さ",
     "group": "F",
-    "status": "active"
+    "status": "graduated"
+  },
+  {
+    "name": "渡辺梨加",
+    "gen": 1,
+    "initial": "わ",
+    "group": "R",
+    "status": "graduated"
   },
   {
     "name": "井上梨名",
     "gen": 2,
     "initial": "い",
     "group": "R",
-    "status": "active"
+    "status": "graduated"
   },
   {
     "name": "遠藤光莉",
@@ -73,11 +80,18 @@
     "status": "active"
   },
   {
+    "name": "関有美子",
+    "gen": 2,
+    "initial": "ゆ",
+    "group": "M",
+    "status": "graduated"
+  },
+  {
     "name": "武元唯衣",
     "gen": 2,
     "initial": "た",
     "group": "Y",
-    "status": "active"
+    "status": "graduated"
   },
   {
     "name": "田村保乃",
@@ -99,6 +113,13 @@
     "initial": "ま",
     "group": "K",
     "status": "active"
+  },
+  {
+    "name": "松平璃子",
+    "gen": 2,
+    "initial": "り",
+    "group": "R",
+    "status": "graduated"
   },
   {
     "name": "松田里奈",
@@ -206,32 +227,116 @@
     "status": "active"
   },
   {
-    "name": "櫻エース",
+    "name": "浅井 恋乃未",
+    "gen": 4,
+    "initial": "あ",
+    "group": "K",
+    "status": "active"
+  },
+  {
+    "name": "稲熊 ひな",
+    "gen": 4,
+    "initial": "い",
+    "group": "H",
+    "status": "active"
+  },
+  {
+    "name": "勝又 春",
+    "gen": 4,
+    "initial": "か",
+    "group": "H",
+    "status": "active"
+  },
+  {
+    "name": "佐藤 愛桜",
     "gen": 4,
     "initial": "さ",
-    "group": "S",
+    "group": "N",
     "status": "active"
   },
   {
-    "name": "櫻ルーキー",
+    "name": "中川 智尋",
     "gen": 4,
-    "initial": "る",
-    "group": "S",
+    "initial": "な",
+    "group": "T",
     "status": "active"
   },
   {
-    "name": "櫻スター",
+    "name": "松本 和子",
     "gen": 4,
+    "initial": "ま",
+    "group": "W",
+    "status": "active"
+  },
+  {
+    "name": "目黒 陽色",
+    "gen": 4,
+    "initial": "め",
+    "group": "H",
+    "status": "active"
+  },
+  {
+    "name": "山川 宇衣",
+    "gen": 4,
+    "initial": "や",
+    "group": "U",
+    "status": "active"
+  },
+  {
+    "name": "山田 桃実",
+    "gen": 4,
+    "initial": "や",
+    "group": "M",
+    "status": "active"
+  },
+  {
+    "name": "守屋茜",
+    "gen": 1,
+    "initial": "も",
+    "group": "A",
+    "status": "graduated"
+  },
+  {
+    "name": "渡邉理佐",
+    "gen": 1,
+    "initial": "わ",
+    "group": "R",
+    "status": "graduated"
+  },
+  {
+    "name": "原田葵",
+    "gen": 1,
+    "initial": "は",
+    "group": "A",
+    "status": "graduated"
+  },
+  {
+    "name": "尾関梨香",
+    "gen": 1,
+    "initial": "お",
+    "group": "R",
+    "status": "graduated"
+  },
+  {
+    "name": "菅井友香",
+    "gen": 1,
     "initial": "す",
-    "group": "S",
-    "status": "active"
+    "group": "Y",
+    "status": "graduated"
   },
   {
-    "name": "櫻ドリーム",
-    "gen": 4,
-    "initial": "ど",
-    "group": "S",
-    "status": "active"
+    "name": "土生瑞穂",
+    "gen": 1,
+    "initial": "は",
+    "group": "M",
+    "status": "graduated"
+  },
+  {
+    "name": "小林由依",
+    "gen": 1,
+    "initial": "こ",
+    "group": "Y",
+    "status": "graduated"
   }
 ];
 });

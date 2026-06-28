@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<base target="_self">
+<title>櫻ポーカー - ブラウザゲーム</title>
+
+<style>
+  :root {
+    --bg1: #120020;
+    --bg2: #32104f;
+    --main: #b86cff;
+    --sub: #ff8fd8;
+    --gold: #ffd86b;
+    --green: #35e6a4;
+    --red: #ff4d78;
+    --blue: #6ac7ff;
+    --text: #ffffff;
+    --soft: rgba(255, 255, 255, 0.12);
+    --soft2: rgba(255, 255, 255, 0.2);
+    --black: rgba(0, 0, 0, 0.32);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+    color: var(--text);
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -30%;
+    background:
+      radial-gradient(circle at 20% 25%, rgba(184, 108, 255, 0.35), transparent 25%),
+      radial-gradient(circle at 80% 15%, rgba(255, 143, 216, 0.28), transparent 24%),
+      radial-gradient(circle at 50% 85%, rgba(53, 230, 164, 0.17), transparent 24%);
+    animation: bgMove 12s ease-in-out infinite alternate;
+    z-index: -2;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 42px 42px;
+    z-index: -1;
+  }
+
+  @keyframes bgMove {
+    from { transform: translate3d(-2%, -2%, 0) rotate(0deg); }
+    to { transform: translate3d(2%, 2%, 0) rotate(8deg); }
+  }
+
+  .screen { display: none; min-height: 100vh; padding: 18px; }
+  .center { align-items: center; justify-content: center; }
+  .screen.active { display: block; }
+  .screen.active.center { display: flex; }
+
+  .panel {
+    width: min(1040px, 100%);
+    padding: 28px;
+    border-radius: 30px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.24);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+    backdrop-filter: blur(16px);
+  }
+
+  h1 {
+    margin: 0 0 12px;
+    font-size: clamp(36px, 8vw, 76px);
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-shadow: 0 0 28px rgba(184,108,255,0.85);
+  }
+
+  h2 { margin: 0 0 14px; font-size: 18px; color: var(--gold); }
+  p { margin: 0; }
+
+  .lead { line-height: 1.8; color: rgba(255,255,255,0.84); margin-bottom: 18px; }
+
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 18px 0; }
+  .rule { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.22); padding: 15px; border-radius: 18px; line-height: 1.7; }
+  .rule b { color: var(--gold); }
+
+  button {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    color: white;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    border-radius: 16px;
+    padding: 13px 18px;
+    background: linear-gradient(135deg, var(--main), var(--sub));
+    box-shadow: 0 8px 0 rgba(69, 21, 108, 0.9), 0 16px 28px rgba(0,0,0,0.26);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.2s ease, filter 0.2s ease;
+  }
+
+  button:hover { filter: brightness(1.08); }
+  button:active { transform: translateY(6px); box-shadow: 0 2px 0 rgba(69, 21, 108, 0.9), 0 8px 16px rgba(0,0,0,0.25); }
+  button:disabled { opacity: 0.42; cursor: not-allowed; filter: grayscale(0.6); }
+
+  .secondary { background: linear-gradient(135deg, #3d426e, #7479b4); box-shadow: 0 8px 0 rgba(38, 43, 82, 0.9), 0 16px 28px rgba(0,0,0,0.24); }
+  .danger { background: linear-gradient(135deg, #ff4778, #b51445); box-shadow: 0 8px 0 rgba(110, 12, 42, 0.9), 0 16px 28px rgba(0,0,0,0.24); }
+  .success { background: linear-gradient(135deg, #22c98f, #119085); box-shadow: 0 8px 0 rgba(15, 82, 72, 0.9), 0 16px 28px rgba(0,0,0,0.24); }
+  .blue { background: linear-gradient(135deg, #40b8ff, #3955d8); box-shadow: 0 8px 0 rgba(32, 48, 128, 0.9), 0 16px 28px rgba(0,0,0,0.24); }
+
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+  .table { width: min(1200px, 100%); margin: 0 auto; }
+
+  .topbar { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+
+  .stat {
+    text-align: center;
+    padding: 12px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 16px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
+  }
+
+  .stat span { display: block; font-size: 12px; color: rgba(255,255,255,0.74); }
+  .stat b { display: block; margin-top: 3px; font-size: 20px; color: var(--gold); }
+
+  .area {
+    padding: 14px;
+    border-radius: 24px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(0,0,0,0.22);
+    margin-bottom: 14px;
+  }
+
+  .area-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    color: rgba(255,255,255,0.82);
+    font-weight: 900;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.13);
+    border: 1px solid rgba(255,255,255,0.23);
+    font-size: 12px;
+    color: white;
+  }
+
+  .cards { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; min-height: 124px; }
+  .cards-row { display: flex; gap: 16px; align-items: center; }
+  .cards-row .cards { flex: 1; }
+
+  .chips-inline {
+    flex-shrink: 0;
+    text-align: center;
+    padding: 12px 18px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 18px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
+  }
+
+  .chips-inline span { display: block; font-size: 12px; color: rgba(255,255,255,0.74); white-space: nowrap; }
+  .chips-inline b { display: block; margin-top: 3px; font-size: 24px; color: var(--gold); white-space: nowrap; }
+
+  .hand-panel {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(184,108,255,0.22), rgba(255,143,216,0.16));
+    border: 1px solid rgba(255,255,255,0.28);
+    margin-bottom: 14px;
+  }
+
+  .hand-panel-title { font-size: 12px; color: rgba(255,255,255,0.78); margin-bottom: 6px; }
+
+  .hand-panel-name {
+    font-size: 24px;
+    font-weight: 1000;
+    color: var(--gold);
+    text-shadow: 0 0 16px rgba(255,216,107,0.55);
+    margin-bottom: 10px;
+  }
+
+  .hand-gauge { display: flex; gap: 5px; flex-wrap: wrap; }
+  .hand-gauge-seg { flex: 1; min-width: 4px; height: 9px; border-radius: 999px; background: rgba(255,255,255,0.16); transition: background 0.2s ease; }
+  .hand-gauge-seg.filled { background: linear-gradient(135deg, var(--main), var(--gold)); box-shadow: 0 0 8px rgba(255,216,107,0.6); }
+
+  .seats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .seat-card {
+    padding: 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(0,0,0,0.24);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .seat-card.turn { border-color: var(--gold); box-shadow: 0 0 18px rgba(255,216,107,0.45); }
+  .seat-card.folded { opacity: 0.45; }
+  .seat-card.you { border-color: var(--blue); }
+
+  .seat-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .seat-name { font-weight: 900; font-size: 14px; }
+  .seat-chips { font-size: 12px; color: var(--gold); }
+  .seat-cards { display: flex; gap: 6px; flex-wrap: wrap; min-height: 70px; }
+
+  .seat-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+  .seat-tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,0.15); }
+  .seat-tag.turn { background: var(--gold); color: #2d1643; }
+  .seat-tag.fold { background: rgba(255,77,120,0.4); }
+  .seat-tag.allin { background: rgba(255,143,216,0.4); }
+  .seat-tag.disconnected { background: rgba(150,150,150,0.4); }
+
+  .card {
+    position: relative;
+    width: 78px;
+    height: 104px;
+    padding: 7px;
+    border-radius: 15px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.98), rgba(235,224,255,0.97));
+    color: #2d1643;
+    border: 2px solid rgba(255,255,255,0.75);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.34);
+    animation: cardIn 0.24s ease both;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 18%, rgba(184,108,255,0.22), transparent 28%),
+      radial-gradient(circle at 88% 82%, rgba(255,143,216,0.18), transparent 30%);
+    pointer-events: none;
+  }
+
+  .card.hidden { background: linear-gradient(135deg, #7e3bdd, #ff91d9); color: white; }
+  .card.hidden > * { display: none; }
+
+  .card.hidden::after {
+    content: "SAKURA";
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    font-weight: 1000;
+    transform: rotate(-18deg);
+    text-shadow: 0 0 14px rgba(255,255,255,0.7);
+  }
+
+  @keyframes cardIn {
+    from { transform: translateY(18px) scale(0.88); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  .gen { position: absolute; top: 6px; right: 6px; padding: 2px 6px; border-radius: 999px; background: #6e36ca; color: white; font-size: 10px; font-weight: 900; z-index: 1; }
+  .name { position: relative; z-index: 1; margin-top: 24px; font-size: 12px; line-height: 1.2; font-weight: 1000; }
+  .meta { position: absolute; left: 7px; bottom: 7px; font-size: 9px; color: #7f5f99; z-index: 1; }
+  .flower { position: absolute; right: 7px; bottom: 4px; font-size: 18px; z-index: 1; }
+
+  .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .message { min-height: 74px; padding: 14px; border-radius: 18px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); line-height: 1.65; }
+
+  .amount {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-top: 12px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.09);
+    border: 1px solid rgba(255,255,255,0.22);
+  }
+
+  input[type="range"] { width: 100%; accent-color: var(--sub); }
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(0,0,0,0.25);
+    color: white;
+    font-size: 15px;
+  }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: rgba(255,255,255,0.74); margin-bottom: 6px; }
+
+  .small { font-size: 13px; color: rgba(255,255,255,0.74); line-height: 1.7; }
+  .error-text { color: var(--red); font-weight: 700; margin-top: 8px; min-height: 18px; }
+
+  .room-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .room-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  .lobby-players { margin: 10px 0; line-height: 1.9; }
+  .lobby-players .host-tag { color: var(--gold); font-size: 11px; margin-left: 6px; }
+
+  .member-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 10px;
+    border-radius: 16px;
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.2);
+    margin-top: 8px;
+  }
+
+  .member-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    cursor: pointer;
+    font-size: 13px;
+    user-select: none;
+  }
+
+  .member-chip.selected { background: linear-gradient(135deg, rgba(184,108,255,0.5), rgba(255,143,216,0.4)); border-color: var(--gold); }
+  .member-chip input { pointer-events: none; }
+  .gen-tag { font-size: 11px; color: var(--gold); margin-left: auto; }
+
+  .pause-layer { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,0.62); z-index: 99; padding: 20px; }
+  .pause-layer.show { display: grid; }
+
+  .shake { animation: shake 0.28s ease; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-3px); }
+  }
+
+  @media (max-width: 820px) {
+    .info-row { grid-template-columns: 1fr; }
+    .panel { padding: 20px; }
+    button { flex: 1 1 auto; padding: 12px 10px; font-size: 13px; }
+    .actions button { flex: 1 1 45%; min-width: 110px; }
+    .cards-row { flex-wrap: wrap; gap: 10px; }
+    .cards-row .cards { flex: 1 1 100%; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+    .chips-inline { flex: 1 1 auto; padding: 10px 12px; }
+    .chips-inline b { font-size: 18px; }
+    .seats-grid { grid-template-columns: 1fr; }
+    .card { width: 64px; height: 88px; padding: 6px; border-radius: 12px; }
+    .name { font-size: 10px; margin-top: 20px; }
+    .gen { font-size: 9px; padding: 2px 5px; }
+    .meta { font-size: 8px; }
+    .flower { font-size: 14px; }
+    h1 { font-size: clamp(30px, 9vw, 48px); }
+    .amount { flex-wrap: wrap; }
+    .amount input[type="range"] { flex: 1 1 100%; order: 3; }
+  }
+
+  @media (max-width: 480px) {
+    .panel { padding: 14px; border-radius: 20px; }
+    .rules { grid-template-columns: 1fr; }
+    .actions button { flex: 1 1 100%; }
+    .card { width: 56px; height: 78px; }
+    .member-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); max-height: 260px; }
+  }
+</style>
+</head>
+
+<body>
+  <!-- ===================== ログイン/登録 ===================== -->
+  <section id="authScreen" class="screen active center">
+    <div class="panel">
+      <h1>櫻ポーカー</h1>
+      <p class="lead">アカウントでログインすると、あなただけのオリジナル役を作成・対戦で使用できます。</p>
+
+      <div id="loginForm">
+        <h2>ログイン</h2>
+        <div class="field"><label>ユーザー名</label><input type="text" id="loginUsername" maxlength="16" /></div>
+        <div class="field"><label>パスワード</label><input type="password" id="loginPassword" maxlength="64" /></div>
+        <div class="actions">
+          <button id="loginBtn">ログイン</button>
+          <button id="showRegisterBtn" class="secondary">新規登録はこちら</button>
+        </div>
+      </div>
+
+      <div id="registerForm" style="display:none;">
+        <h2>新規アカウント登録</h2>
+        <div class="field"><label>ユーザー名(2〜16文字)</label><input type="text" id="registerUsername" maxlength="16" /></div>
+        <div class="field"><label>パスワード(4文字以上)</label><input type="password" id="registerPassword" maxlength="64" /></div>
+        <div class="actions">
+          <button id="registerBtn">登録してログイン</button>
+          <button id="showLoginBtn" class="secondary">ログインに戻る</button>
+        </div>
+      </div>
+
+      <p class="error-text" id="authMessage"></p>
+    </div>
+  </section>
+
+  <!-- ===================== メインメニュー ===================== -->
+  <section id="menuScreen" class="screen center">
+    <div class="panel">
+      <h1>櫻ポーカー</h1>
+      <p class="lead" id="welcomeText"></p>
+
+      <div class="rules">
+        <div class="rule"><b>CPU対戦</b><br>あなた＋CPU3人、合計4人テーブルで対戦します。</div>
+        <div class="rule"><b>オンライン対戦</b><br>2〜4人でルームを作り、リアルタイムに対戦できます。</div>
+        <div class="rule"><b>オリジナル役</b><br>役エディターで2〜5枚のカードを指定して自分だけの役を登録できます(枚数ごとに1つまで)。</div>
+      </div>
+
+      <p class="small" id="handRankingText">役の強さを計算中…</p>
+
+      <div class="actions">
+        <button id="startCpuBtn">CPU3人と対戦</button>
+        <button id="goOnlineBtn" class="blue">オンライン対戦</button>
+        <button id="goEditorBtn" class="success">役を編集する</button>
+        <button id="goAccountBtn" class="secondary">アカウント設定</button>
+        <button id="resetHighScoreBtn" class="secondary">ハイスコア削除</button>
+        <button id="logoutBtn" class="danger">ログアウト</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== アカウント設定 ===================== -->
+  <section id="accountScreen" class="screen center">
+    <div class="panel">
+      <h1>アカウント設定</h1>
+      <p class="lead"><b id="accountUsernameText"></b> さんの設定</p>
+
+      <h2>推しメン</h2>
+      <p class="small">対戦中・ランキングに表示される、あなたの推しメンを1人選んでください。</p>
+      <div class="member-grid" id="favoriteMemberGrid"></div>
+      <p class="small" id="favoriteMemberSelected" style="margin-top:8px;"></p>
+
+      <h2 style="margin-top:20px;">持ち点(ハイスコア)</h2>
+      <div class="stat" style="display:inline-block; min-width:160px;">
+        <span>これまでの最高持ち点</span>
+        <b id="accountHighScore">0</b>
+      </div>
+
+      <h2 style="margin-top:20px;">オリジナル役</h2>
+      <div id="accountHandsList" class="small"></div>
+
+      <p class="error-text" id="accountMessage"></p>
+
+      <div class="actions">
+        <button id="saveAccountBtn">推しメンを保存</button>
+        <button id="goEditorFromAccountBtn" class="success">役エディターへ</button>
+        <button id="backFromAccountBtn" class="secondary">メニューに戻る</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== オンライン ロビー ===================== -->
+  <section id="onlineLobbyScreen" class="screen center">
+    <div class="panel">
+      <h1>オンライン対戦</h1>
+
+      <div id="lobbyOutside">
+        <p class="lead">ルームを新しく作るか、既存のルームIDを入力して参加してください。(2〜4人)</p>
+        <div class="actions">
+          <button id="createRoomBtn">ルームを作成</button>
+          <button id="refreshRoomsBtn" class="secondary">公開ルーム一覧を更新</button>
+        </div>
+
+        <div class="field" style="margin-top:16px;">
+          <label>ルームIDで参加</label>
+          <input type="text" id="joinRoomCodeInput" maxlength="4" placeholder="例：A1B2" />
+        </div>
+        <div class="actions">
+          <button id="joinRoomBtn" class="blue">参加する</button>
+        </div>
+
+        <h2 style="margin-top:18px;">参加可能なルーム</h2>
+        <div class="room-list" id="roomListContainer"><p class="small">まだ取得していません。「公開ルーム一覧を更新」を押してください。</p></div>
+      </div>
+
+      <div id="lobbyInside" style="display:none;">
+        <p class="lead">ルームID：<b id="roomCodeText" style="color:var(--gold);font-size:20px;"></b></p>
+        <div class="lobby-players" id="lobbyPlayersList"></div>
+        <div class="actions">
+          <button id="startOnlineBtn" class="success" disabled>対戦を開始(ホストのみ)</button>
+          <button id="leaveRoomBtn" class="danger">ルームを抜ける</button>
+        </div>
+      </div>
+
+      <p class="error-text" id="lobbyMessage"></p>
+
+      <div class="actions">
+        <button id="backToMenuFromLobbyBtn" class="secondary">メニューに戻る</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ゲーム画面(共通) ===================== -->
+  <section id="gameScreen" class="screen">
+    <div class="table">
+      <div class="topbar" id="cpuTopbar">
+        <div class="stat">
+          <span>ハイスコア</span>
+          <b id="highScore">0</b>
+        </div>
+      </div>
+
+      <div class="area">
+        <div class="area-title">
+          <span>コミュニティカード</span>
+          <span id="phaseLabel" class="badge">待機中</span>
+        </div>
+        <div class="cards-row">
+          <div id="communityCards" class="cards"></div>
+          <div class="chips-inline"><span>ポット</span><b id="potLabel">0</b></div>
+        </div>
+      </div>
+
+      <div id="seatsGrid" class="seats-grid"></div>
+
+      <div class="area">
+        <div class="hand-panel">
+          <div class="hand-panel-title">あなたの役</div>
+          <div class="hand-panel-name" id="handRank">-</div>
+          <div class="hand-gauge" id="handGauge"></div>
+        </div>
+
+        <div id="message" class="message">準備中です。</div>
+
+        <div class="amount">
+          <span>額</span>
+          <input id="betAmount" type="range" min="10" max="300" step="10" value="50" />
+          <b id="betLabel">50</b>
+        </div>
+
+        <div class="actions">
+          <button id="checkBtn" class="success">チェック / コール</button>
+          <button id="betBtn">ベット</button>
+          <button id="raiseBtn" class="blue">レイズ</button>
+          <button id="foldBtn" class="danger">フォールド</button>
+          <button id="pauseBtn" class="secondary">一時停止</button>
+          <button id="restartBtn" class="secondary">リスタート</button>
+          <button id="leaveGameBtn" class="secondary" style="display:none;">ロビーに戻る</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="gameOverScreen" class="screen center">
+    <div class="panel">
+      <h1 id="gameOverTitle">GAME OVER</h1>
+      <p id="gameOverText" class="lead"></p>
+      <div class="actions">
+        <button id="againBtn">もう一度遊ぶ</button>
+        <button id="titleBtn" class="secondary">メニューへ</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="pauseLayer" class="pause-layer">
+    <div class="panel">
+      <h1>PAUSE</h1>
+      <p class="lead">ゲームを一時停止中です。</p>
+      <div class="actions"><button id="resumeBtn">再開</button></div>
+    </div>
+  </div>
+
+<script src="hand-engine.js"></script>
+<script>
+"use strict";
+
+/* =========================================================
+   櫻ポーカー クライアント
+   CPU対戦(あなた+CPU3人)とオンライン対戦(2〜4人)の両方を扱います。
+   ベッティング進行ロジックは hand-engine.js の createTable() を共有利用しています。
+========================================================= */
+const TOKEN_KEY = "sakuraToken";
+const USERNAME_KEY = "sakuraUsername";
+
+const $ = id => document.getElementById(id);
+
+const dom = {
+  authScreen: $("authScreen"),
+  menuScreen: $("menuScreen"),
+  onlineLobbyScreen: $("onlineLobbyScreen"),
+  gameScreen: $("gameScreen"),
+  gameOverScreen: $("gameOverScreen"),
+  pauseLayer: $("pauseLayer"),
+
+  loginForm: $("loginForm"),
+  registerForm: $("registerForm"),
+  loginUsername: $("loginUsername"),
+  loginPassword: $("loginPassword"),
+  loginBtn: $("loginBtn"),
+  showRegisterBtn: $("showRegisterBtn"),
+  registerUsername: $("registerUsername"),
+  registerPassword: $("registerPassword"),
+  registerBtn: $("registerBtn"),
+  showLoginBtn: $("showLoginBtn"),
+  authMessage: $("authMessage"),
+
+  welcomeText: $("welcomeText"),
+  handRankingText: $("handRankingText"),
+  startCpuBtn: $("startCpuBtn"),
+  goOnlineBtn: $("goOnlineBtn"),
+  goEditorBtn: $("goEditorBtn"),
+  resetHighScoreBtn: $("resetHighScoreBtn"),
+  logoutBtn: $("logoutBtn"),
+
+  lobbyOutside: $("lobbyOutside"),
+  lobbyInside: $("lobbyInside"),
+  createRoomBtn: $("createRoomBtn"),
+  refreshRoomsBtn: $("refreshRoomsBtn"),
+  joinRoomCodeInput: $("joinRoomCodeInput"),
+  joinRoomBtn: $("joinRoomBtn"),
+  roomListContainer: $("roomListContainer"),
+  roomCodeText: $("roomCodeText"),
+  lobbyPlayersList: $("lobbyPlayersList"),
+  startOnlineBtn: $("startOnlineBtn"),
+  leaveRoomBtn: $("leaveRoomBtn"),
+  lobbyMessage: $("lobbyMessage"),
+  backToMenuFromLobbyBtn: $("backToMenuFromLobbyBtn"),
+
+  cpuTopbar: $("cpuTopbar"),
+  highScore: $("highScore"),
+  phaseLabel: $("phaseLabel"),
+  communityCards: $("communityCards"),
+  potLabel: $("potLabel"),
+  seatsGrid: $("seatsGrid"),
+  handRank: $("handRank"),
+  handGauge: $("handGauge"),
+  message: $("message"),
+  betAmount: $("betAmount"),
+  betLabel: $("betLabel"),
+  checkBtn: $("checkBtn"),
+  betBtn: $("betBtn"),
+  raiseBtn: $("raiseBtn"),
+  foldBtn: $("foldBtn"),
+  pauseBtn: $("pauseBtn"),
+  restartBtn: $("restartBtn"),
+  leaveGameBtn: $("leaveGameBtn"),
+  resumeBtn: $("resumeBtn"),
+  againBtn: $("againBtn"),
+  titleBtn: $("titleBtn"),
+  gameOverTitle: $("gameOverTitle"),
+  gameOverText: $("gameOverText"),
+
+  accountScreen: $("accountScreen"),
+  accountUsernameText: $("accountUsernameText"),
+  favoriteMemberGrid: $("favoriteMemberGrid"),
+  favoriteMemberSelected: $("favoriteMemberSelected"),
+  accountHighScore: $("accountHighScore"),
+  accountHandsList: $("accountHandsList"),
+  accountMessage: $("accountMessage"),
+  saveAccountBtn: $("saveAccountBtn"),
+  goAccountBtn: $("goAccountBtn"),
+  goEditorFromAccountBtn: $("goEditorFromAccountBtn"),
+  backFromAccountBtn: $("backFromAccountBtn")
+};
+
+let myToken = localStorage.getItem(TOKEN_KEY) || null;
+let myUsername = localStorage.getItem(USERNAME_KEY) || null;
+let myHands = [];
+let myFavoriteMember = null;
+let pendingFavoriteMember = null;
+
+let mode = null; // "cpu" | "online"
+let cpuTable = null;
+let cpuPaused = false;
+let highScore = 0;
+
+let ws = null;
+let onlineRoomId = null;
+let onlineIsHost = false;
+let onlineUsernames = [];
+let lastOnlineState = null;
+
+/* =========================================================
+   画面切り替え
+========================================================= */
+function showOnly(screen) {
+  [dom.authScreen, dom.menuScreen, dom.accountScreen, dom.onlineLobbyScreen, dom.gameScreen, dom.gameOverScreen].forEach(s => s.classList.remove("active"));
+  screen.classList.add("active");
+}
+
+/* =========================================================
+   API
+========================================================= */
+async function apiCall(pathname, method, body) {
+  const res = await fetch(pathname, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "通信に失敗しました。");
+  return data;
+}
+
+async function fetchMyProfile() {
+  if (!myToken) return null;
+  const data = await apiCall(`/api/profile?token=${encodeURIComponent(myToken)}`, "GET");
+  myHands = data.hands || [];
+  myFavoriteMember = data.favoriteMember || null;
+  return data;
+}
+
+/* =========================================================
+   認証
+========================================================= */
+function setAuthMessage(text) {
+  dom.authMessage.textContent = text || "";
+}
+
+async function doLogin() {
+  setAuthMessage("");
+  const username = dom.loginUsername.value.trim();
+  const password = dom.loginPassword.value;
+  try {
+    const data = await apiCall("/api/login", "POST", { username, password });
+    onLoggedIn(data);
+  } catch (e) {
+    setAuthMessage(e.message);
+  }
+}
+
+async function doRegister() {
+  setAuthMessage("");
+  const username = dom.registerUsername.value.trim();
+  const password = dom.registerPassword.value;
+  try {
+    const data = await apiCall("/api/register", "POST", { username, password });
+    onLoggedIn(data);
+  } catch (e) {
+    setAuthMessage(e.message);
+  }
+}
+
+function onLoggedIn(data) {
+  myToken = data.token;
+  myUsername = data.username;
+  myHands = data.hands || [];
+  myFavoriteMember = data.favoriteMember || null;
+  localStorage.setItem(TOKEN_KEY, myToken);
+  localStorage.setItem(USERNAME_KEY, myUsername);
+  goToMenu();
+}
+
+async function doLogout() {
+  try { await apiCall("/api/logout", "POST", { token: myToken }); } catch (e) { /* noop */ }
+  myToken = null;
+  myUsername = null;
+  myHands = [];
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USERNAME_KEY);
+  closeWs();
+  setAuthMessage("");
+  showOnly(dom.authScreen);
+}
+
+async function goToMenu() {
+  try { await fetchMyProfile(); } catch (e) { /* 取得失敗時は直前のデータで表示を継続 */ }
+  dom.welcomeText.textContent = `${myUsername} さん、ようこそ！`;
+  renderHandRankingPreview();
+  highScore = Number(localStorage.getItem(`sakuraPokerHighScore_${myUsername}`) || 0);
+  dom.highScore.textContent = highScore;
+  showOnly(dom.menuScreen);
+}
+
+function renderHandRankingPreview() {
+  const built = SakuraHandEngine.buildHandDefs(myHands);
+  const strongestFirst = [...built.HAND_NAMES].reverse();
+  dom.handRankingText.textContent = `役の強さ(あなたのオリジナル役を含む)：${strongestFirst.join(" ＞ ")}`;
+}
+
+/* =========================================================
+   アカウント設定(推しメン・オリジナル役・持ち点)
+========================================================= */
+async function openAccountScreen() {
+  try { await fetchMyProfile(); } catch (e) { /* 直前のデータで表示を継続 */ }
+
+  pendingFavoriteMember = myFavoriteMember;
+  dom.accountMessage.textContent = "";
+  dom.accountUsernameText.textContent = myUsername;
+  highScore = Number(localStorage.getItem(`sakuraPokerHighScore_${myUsername}`) || 0);
+  dom.accountHighScore.textContent = highScore;
+
+  renderFavoriteMemberGrid();
+  renderAccountHandsList();
+  showOnly(dom.accountScreen);
+}
+
+function renderFavoriteMemberGrid() {
+  dom.favoriteMemberGrid.innerHTML = "";
+
+  for (const member of SakuraHandEngine.MEMBERS) {
+    const chip = document.createElement("div");
+    const isSelected = pendingFavoriteMember === member.name;
+    chip.className = "member-chip" + (isSelected ? " selected" : "");
+    chip.innerHTML = `
+      <input type="checkbox" ${isSelected ? "checked" : ""} />
+      <span>${escapeHTML(member.name)}</span>
+      <span class="gen-tag">${member.gen}期</span>
+    `;
+    chip.addEventListener("click", () => {
+      pendingFavoriteMember = pendingFavoriteMember === member.name ? null : member.name;
+      renderFavoriteMemberGrid();
+      dom.favoriteMemberSelected.textContent = pendingFavoriteMember
+        ? `選択中：${pendingFavoriteMember}`
+        : "選択中：(未設定)";
+    });
+    dom.favoriteMemberGrid.appendChild(chip);
+  }
+
+  dom.favoriteMemberSelected.textContent = pendingFavoriteMember
+    ? `選択中：${pendingFavoriteMember}`
+    : "選択中：(未設定)";
+}
+
+async function saveFavoriteMember() {
+  dom.accountMessage.textContent = "";
+  try {
+    const data = await apiCall("/api/profile", "POST", { token: myToken, favoriteMember: pendingFavoriteMember });
+    myFavoriteMember = data.favoriteMember || null;
+    dom.accountMessage.style.color = "var(--green)";
+    dom.accountMessage.textContent = "推しメンを保存しました。";
+  } catch (e) {
+    dom.accountMessage.style.color = "var(--red)";
+    dom.accountMessage.textContent = e.message;
+  }
+}
+
+function renderAccountHandsList() {
+  if (!myHands.length) {
+    dom.accountHandsList.innerHTML = '<p class="small">まだオリジナル役は登録されていません。役エディターから作成できます。</p>';
+    return;
+  }
+
+  const sizes = [2, 3, 4, 5];
+  dom.accountHandsList.innerHTML = sizes.map(size => {
+    const hand = myHands.find(h => h.names.length === size);
+    return hand
+      ? `<div>${size}枚役：<b>${escapeHTML(hand.label)}</b>（${hand.names.map(escapeHTML).join("・")}）</div>`
+      : `<div>${size}枚役：<span class="small">未登録</span></div>`;
+  }).join("");
+}
+
+/* =========================================================
+   起動時の自動ログイン確認
+========================================================= */
+async function init() {
+  if (myToken) {
+    try {
+      await fetchMyProfile();
+      await goToMenu();
+    } catch (e) {
+      myToken = null;
+      myUsername = null;
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USERNAME_KEY);
+      showOnly(dom.authScreen);
+    }
+  } else {
+    showOnly(dom.authScreen);
+  }
+
+  bindEvents();
+}
+
+function bindEvents() {
+  dom.loginBtn.addEventListener("click", doLogin);
+  dom.registerBtn.addEventListener("click", doRegister);
+  dom.showRegisterBtn.addEventListener("click", () => {
+    dom.loginForm.style.display = "none";
+    dom.registerForm.style.display = "block";
+    setAuthMessage("");
+  });
+  dom.showLoginBtn.addEventListener("click", () => {
+    dom.registerForm.style.display = "none";
+    dom.loginForm.style.display = "block";
+    setAuthMessage("");
+  });
+
+  dom.startCpuBtn.addEventListener("click", startCpuGame);
+  dom.goOnlineBtn.addEventListener("click", openOnlineLobby);
+  dom.goEditorBtn.addEventListener("click", () => { window.location.href = "hand_editor.html"; });
+  dom.goAccountBtn.addEventListener("click", openAccountScreen);
+  dom.resetHighScoreBtn.addEventListener("click", resetHighScore);
+  dom.logoutBtn.addEventListener("click", doLogout);
+
+  dom.saveAccountBtn.addEventListener("click", saveFavoriteMember);
+  dom.goEditorFromAccountBtn.addEventListener("click", () => { window.location.href = "hand_editor.html"; });
+  dom.backFromAccountBtn.addEventListener("click", goToMenu);
+
+  dom.createRoomBtn.addEventListener("click", () => sendWs({ type: "createRoom" }));
+  dom.refreshRoomsBtn.addEventListener("click", () => sendWs({ type: "listRooms" }));
+  dom.joinRoomBtn.addEventListener("click", () => {
+    const code = dom.joinRoomCodeInput.value.trim().toUpperCase();
+    if (code) sendWs({ type: "joinRoom", roomId: code });
+  });
+  dom.startOnlineBtn.addEventListener("click", () => sendWs({ type: "startGame" }));
+  dom.leaveRoomBtn.addEventListener("click", () => {
+    sendWs({ type: "leaveRoom" });
+    onlineRoomId = null;
+    dom.lobbyInside.style.display = "none";
+    dom.lobbyOutside.style.display = "block";
+  });
+  dom.backToMenuFromLobbyBtn.addEventListener("click", () => {
+    if (onlineRoomId) sendWs({ type: "leaveRoom" });
+    closeWs();
+    goToMenu();
+  });
+
+  dom.checkBtn.addEventListener("click", () => dispatchAction("check"));
+  dom.betBtn.addEventListener("click", () => dispatchAction("bet"));
+  dom.raiseBtn.addEventListener("click", () => dispatchAction("raise"));
+  dom.foldBtn.addEventListener("click", () => dispatchAction("fold"));
+
+  dom.pauseBtn.addEventListener("click", togglePause);
+  dom.resumeBtn.addEventListener("click", togglePause);
+  dom.restartBtn.addEventListener("click", () => { playSound(280, "square", 0.08); startCpuGame(); });
+  dom.leaveGameBtn.addEventListener("click", () => {
+    sendWs({ type: "leaveRoom" });
+    closeWs();
+    goToMenu();
+  });
+  dom.againBtn.addEventListener("click", startCpuGame);
+  dom.titleBtn.addEventListener("click", () => { dom.pauseLayer.classList.remove("show"); goToMenu(); });
+
+  dom.betAmount.addEventListener("input", () => { dom.betLabel.textContent = dom.betAmount.value; });
+}
+
+/* =========================================================
+   CPU対戦モード(あなた+CPU3人)
+========================================================= */
+const YOUR_SEAT = 0;
+
+async function startCpuGame() {
+  try { await fetchMyProfile(); } catch (e) { /* 直前のオリジナル役データで続行 */ }
+
+  mode = "cpu";
+  cpuPaused = false;
+  dom.pauseLayer.classList.remove("show");
+  dom.cpuTopbar.style.display = "grid";
+  dom.pauseBtn.style.display = "inline-block";
+  dom.restartBtn.style.display = "inline-block";
+  dom.leaveGameBtn.style.display = "none";
+
+  cpuTable = SakuraHandEngine.createTable({
+    playerNames: [myUsername, "CPU 1", "CPU 2", "CPU 3"],
+    customHandsPool: myHands,
+    onChange: renderFromCpuTable,
+    isBot: seat => seat !== YOUR_SEAT,
+    onBotTurn: seat => setTimeoutSafe(() => cpuDecide(seat), 700 + Math.random() * 500),
+    autoAdvanceMs: 2800
+  });
+
+  showOnly(dom.gameScreen);
+  playSound(520, "triangle", 0.1);
+  cpuTable.startGame();
+}
+
+function cpuDecide(seat) {
+  const table = cpuTable;
+  if (mode !== "cpu" || !table || table.handPhase !== "betting" || table.turnSeat !== seat) return;
+
+  const p = table.players[seat];
+  const callAmount = table.callAmountFor(seat);
+  let strength = 0;
+
+  if (p.holeCards.length + table.communityCards.length >= 5) {
+    const ev = SakuraHandEngine.evaluateBestHand([...p.holeCards, ...table.communityCards], table.HAND_DEFS, table.HAND_NAMES);
+    strength = ev.rank;
+  }
+
+  const random = Math.random();
+
+  if (callAmount > 0) {
+    const riskRate = callAmount / Math.max(p.chips, 1);
+    if (strength <= 1 && riskRate > 0.22 && random < 0.55) {
+      table.action(seat, "fold");
+      return;
+    }
+    table.action(seat, "check"); // callAmount>0なのでエンジン内部でコール処理される
+    return;
+  }
+
+  if (strength >= 4 && random < 0.42 && p.chips > 0) {
+    const amount = Math.min(40 + strength * 15, p.chips);
+    table.action(seat, table.currentBetLevel > 0 ? "raise" : "bet", amount);
+    return;
+  }
+
+  table.action(seat, "check");
+}
+
+function renderFromCpuTable(table) {
+  if (mode !== "cpu" || table !== cpuTable) return;
+  renderGenericTable(buildViewModelFromLocalTable(table));
+
+  if (table.handPhase === "gameover") {
+    setTimeoutSafe(() => endCpuGame(table), 900);
+  }
+}
+
+function endCpuGame(table) {
+  if (mode !== "cpu" || table !== cpuTable) return;
+  const you = table.players[YOUR_SEAT];
+  updateHighScore(you.chips);
+  showOnly(dom.gameOverScreen);
+
+  if (!you.sittingOut) {
+    dom.gameOverTitle.textContent = "YOU WIN!";
+    dom.gameOverText.textContent = `相手CPUを全員0ptにしました！最終スコア：${you.chips}pt / ハイスコア：${highScore}pt`;
+    playSound(900, "triangle", 0.22);
+  } else {
+    dom.gameOverTitle.textContent = "GAME OVER";
+    dom.gameOverText.textContent = `あなたの持ち点がなくなりました。ハイスコア：${highScore}pt`;
+    playSound(120, "sawtooth", 0.22);
+  }
+}
+
+function updateHighScore(chips) {
+  if (chips > highScore) {
+    highScore = chips;
+    localStorage.setItem(`sakuraPokerHighScore_${myUsername}`, String(highScore));
+  }
+  dom.highScore.textContent = highScore;
+}
+
+function resetHighScore() {
+  highScore = 0;
+  localStorage.removeItem(`sakuraPokerHighScore_${myUsername}`);
+  dom.highScore.textContent = highScore;
+  playSound(220, "square", 0.08);
+  alert("ハイスコアを削除しました。");
+}
+
+function togglePause() {
+  if (mode !== "cpu" || !dom.gameScreen.classList.contains("active")) return;
+  cpuPaused = !cpuPaused;
+  dom.pauseLayer.classList.toggle("show", cpuPaused);
+  playSound(cpuPaused ? 180 : 540, "sine", 0.08);
+}
+
+function setTimeoutSafe(callback, delay) {
+  window.setTimeout(() => {
+    if (mode !== "cpu" || !cpuPaused) {
+      callback();
+    } else {
+      const waitUntilResume = window.setInterval(() => {
+        if (!cpuPaused) {
+          window.clearInterval(waitUntilResume);
+          callback();
+        }
+      }, 200);
+    }
+  }, delay);
+}
+
+/* =========================================================
+   オンライン対戦モード
+========================================================= */
+function openOnlineLobby() {
+  mode = "online";
+  dom.lobbyMessage.textContent = "";
+  dom.lobbyOutside.style.display = "block";
+  dom.lobbyInside.style.display = "none";
+  dom.roomListContainer.innerHTML = '<p class="small">まだ取得していません。「公開ルーム一覧を更新」を押してください。</p>';
+  showOnly(dom.onlineLobbyScreen);
+  ensureWs();
+}
+
+function ensureWs() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+  const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${wsProtocol}//${location.host}`);
+  ws.onopen = () => sendWs({ type: "auth", token: myToken });
+  ws.onmessage = evt => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch (e) { return; }
+    handleWsMessage(msg);
+  };
+  ws.onclose = () => { ws = null; };
+  ws.onerror = () => { dom.lobbyMessage.textContent = "サーバーに接続できません。npm start でサーバーを起動し、http://localhost:8787/ から開いてください。"; };
+}
+
+function closeWs() {
+  if (ws) { try { ws.close(); } catch (e) { /* noop */ } }
+  ws = null;
+  onlineRoomId = null;
+}
+
+function sendWs(obj) {
+  ensureWs();
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+  } else {
+    ws.addEventListener("open", () => ws.send(JSON.stringify(obj)), { once: true });
+  }
+}
+
+function handleWsMessage(msg) {
+  if (msg.type === "error") {
+    dom.lobbyMessage.textContent = msg.message;
+    return;
+  }
+
+  if (msg.type === "roomList") {
+    renderRoomList(msg.rooms);
+    return;
+  }
+
+  if (msg.type === "roomState") {
+    onlineRoomId = msg.roomId;
+    onlineUsernames = msg.players.map(p => p.username);
+    onlineIsHost = msg.hostUsername === myUsername;
+    renderLobbyRoom(msg);
+    return;
+  }
+
+  if (msg.type === "gameState") {
+    onlineRoomId = msg.roomId;
+    if (!dom.gameScreen.classList.contains("active")) {
+      dom.cpuTopbar.style.display = "none";
+      dom.pauseBtn.style.display = "none";
+      dom.restartBtn.style.display = "none";
+      dom.leaveGameBtn.style.display = "inline-block";
+      showOnly(dom.gameScreen);
+    }
+    lastOnlineState = msg;
+    renderGenericTable(buildViewModelFromOnlineState(msg));
+    return;
+  }
+}
+
+function renderRoomList(roomsList) {
+  if (!roomsList.length) {
+    dom.roomListContainer.innerHTML = '<p class="small">現在、参加可能なルームはありません。</p>';
+    return;
+  }
+
+  dom.roomListContainer.innerHTML = roomsList.map(r => `
+    <div class="room-row">
+      <span>ルーム ${escapeHTML(r.roomId)}(ホスト：${escapeHTML(r.hostUsername)}、${r.players}/4人)</span>
+      <button class="blue join-room-row-btn" data-room="${escapeHTML(r.roomId)}">参加</button>
+    </div>
+  `).join("");
+
+  dom.roomListContainer.querySelectorAll(".join-room-row-btn").forEach(btn => {
+    btn.addEventListener("click", () => sendWs({ type: "joinRoom", roomId: btn.dataset.room }));
+  });
+}
+
+function renderLobbyRoom(msg) {
+  dom.lobbyOutside.style.display = "none";
+  dom.lobbyInside.style.display = "block";
+  dom.roomCodeText.textContent = msg.roomId;
+  dom.lobbyPlayersList.innerHTML = msg.players.map(p => `
+    <div>
+      ${escapeHTML(p.username)}
+      ${p.username === msg.hostUsername ? '<span class="host-tag">ホスト</span>' : ""}
+      ${p.connected ? "" : '<span class="host-tag" style="color:var(--red);">切断中</span>'}
+    </div>
+  `).join("");
+
+  dom.startOnlineBtn.disabled = !(onlineIsHost && msg.canStart);
+  dom.lobbyMessage.textContent = "";
+}
+
+/* =========================================================
+   汎用テーブル描画(CPU/オンライン共通)
+========================================================= */
+function buildViewModelFromLocalTable(table) {
+  const you = table.players[YOUR_SEAT];
+  const evalResult = (you.holeCards.length + table.communityCards.length >= 5)
+    ? SakuraHandEngine.evaluateBestHand([...you.holeCards, ...table.communityCards], table.HAND_DEFS, table.HAND_NAMES)
+    : null;
+
+  const PHASE_LABELS = ["プリフロップ", "フロップ", "ターン", "リバー"];
+
+  return {
+    phaseLabel: table.handPhase === "betting" ? PHASE_LABELS[table.phaseIndex]
+      : table.handPhase === "result" ? "ショーダウン"
+      : table.handPhase === "gameover" ? "終了" : "待機中",
+    communityCards: table.communityCards,
+    pot: table.pot,
+    seats: table.players.map((p, i) => ({
+      name: p.name,
+      chips: p.chips,
+      bet: p.betThisRound,
+      folded: p.folded,
+      sittingOut: p.sittingOut,
+      allIn: p.allIn,
+      connected: true,
+      isYou: i === YOUR_SEAT,
+      isTurn: table.turnSeat === i,
+      cards: (i === YOUR_SEAT || table.handPhase === "result" || table.handPhase === "gameover") ? p.holeCards : []
+    })),
+    message: table.message,
+    yourHandName: evalResult ? evalResult.name : null,
+    yourHandRank: evalResult ? evalResult.rank : null,
+    handNamesCount: table.HAND_NAMES.length,
+    isYourTurn: table.turnSeat === YOUR_SEAT,
+    callAmount: table.callAmountFor(YOUR_SEAT),
+    currentBetLevel: table.currentBetLevel,
+    controlsEnabled: !cpuPaused && table.handPhase === "betting",
+    maxChips: you.chips
+  };
+}
+
+function buildViewModelFromOnlineState(msg) {
+  const you = msg.players.find(p => p.isYou);
+  return {
+    phaseLabel: msg.phaseLabel,
+    communityCards: msg.communityCards,
+    pot: msg.pot,
+    seats: msg.players.map(p => ({
+      name: p.username,
+      chips: p.chips,
+      bet: p.betThisRound,
+      folded: p.folded,
+      sittingOut: p.sittingOut,
+      allIn: p.allIn,
+      connected: p.connected,
+      isYou: p.isYou,
+      isTurn: p.isTurn,
+      cards: p.cards || []
+    })),
+    message: msg.message,
+    yourHandName: msg.yourHandName,
+    yourHandRank: msg.yourHandRank,
+    handNamesCount: msg.handNames.length,
+    isYourTurn: msg.isYourTurn,
+    callAmount: you ? Math.max(0, msg.currentBetLevel - you.betThisRound) : 0,
+    currentBetLevel: msg.currentBetLevel,
+    controlsEnabled: msg.handPhase === "betting",
+    maxChips: you ? you.chips : 0
+  };
+}
+
+let lastViewModel = null;
+
+function renderGenericTable(vm) {
+  lastViewModel = vm;
+
+  dom.phaseLabel.textContent = vm.phaseLabel;
+  dom.potLabel.textContent = vm.pot;
+  renderCards(dom.communityCards, vm.communityCards, true);
+
+  dom.seatsGrid.innerHTML = "";
+  vm.seats.forEach(seat => {
+    const card = document.createElement("div");
+    card.className = "seat-card" + (seat.isTurn ? " turn" : "") + (seat.folded ? " folded" : "") + (seat.isYou ? " you" : "");
+
+    const tags = [];
+    if (seat.isTurn) tags.push('<span class="seat-tag turn">手番</span>');
+    if (seat.folded) tags.push('<span class="seat-tag fold">フォールド</span>');
+    if (seat.allIn) tags.push('<span class="seat-tag allin">オールイン</span>');
+    if (seat.sittingOut) tags.push('<span class="seat-tag fold">脱落</span>');
+    if (!seat.connected) tags.push('<span class="seat-tag disconnected">切断中</span>');
+
+    const cardsHtml = seat.cards && seat.cards.length
+      ? seat.cards.map(c => cardHTML(c, true)).join("")
+      : (seat.sittingOut ? "" : cardHTML(null, false) + cardHTML(null, false));
+
+    card.innerHTML = `
+      <div class="seat-head">
+        <span class="seat-name">${escapeHTML(seat.name)}${seat.isYou ? "(あなた)" : ""}</span>
+        <span class="seat-chips">${seat.chips}pt${seat.bet > 0 ? ` (ベット:${seat.bet})` : ""}</span>
+      </div>
+      <div class="seat-cards">${cardsHtml}</div>
+      <div class="seat-tags">${tags.join("")}</div>
+    `;
+
+    dom.seatsGrid.appendChild(card);
+  });
+
+  dom.handRank.textContent = vm.yourHandName || "-";
+  renderHandGauge(dom.handGauge, vm.yourHandRank, vm.handNamesCount);
+
+  setMessage(vm.message);
+  updateControls(vm);
+}
+
+function cardHTML(card, reveal) {
+  if (!reveal || !card) {
+    return `<div class="card hidden"></div>`;
+  }
+  return `
+    <div class="card">
+      <div class="gen">${escapeHTML(card.gen)}期</div>
+      <div class="name">${escapeHTML(card.name)}</div>
+      <div class="meta">G:${escapeHTML(card.group)}</div>
+      <div class="flower">✿</div>
+    </div>
+  `;
+}
+
+function renderCards(container, cards, reveal) {
+  container.innerHTML = "";
+  for (const card of (cards || [])) {
+    const div = document.createElement("div");
+    div.className = reveal ? "card" : "card hidden";
+    div.innerHTML = `
+      <div class="gen">${escapeHTML(card.gen)}期</div>
+      <div class="name">${escapeHTML(card.name)}</div>
+      <div class="meta">頭文字:${escapeHTML(card.initial)} / G:${escapeHTML(card.group)}</div>
+      <div class="flower">✿</div>
+    `;
+    container.appendChild(div);
+  }
+}
+
+function renderHandGauge(container, rank, total) {
+  container.innerHTML = "";
+  if (rank == null) return;
+  for (let i = 0; i < total; i++) {
+    const seg = document.createElement("div");
+    seg.className = i <= rank ? "hand-gauge-seg filled" : "hand-gauge-seg";
+    container.appendChild(seg);
+  }
+}
+
+function updateControls(vm) {
+  const enabled = vm.controlsEnabled && vm.isYourTurn;
+  dom.checkBtn.disabled = !enabled;
+  dom.betBtn.disabled = !enabled || vm.currentBetLevel > 0;
+  dom.raiseBtn.disabled = !enabled || vm.currentBetLevel <= 0;
+  dom.foldBtn.disabled = !enabled;
+  dom.checkBtn.textContent = vm.callAmount > 0 ? `コール(${vm.callAmount})` : "チェック";
+
+  const max = Math.max(10, Math.min(300, vm.maxChips || 10));
+  dom.betAmount.max = String(max);
+  if (Number(dom.betAmount.value) > max) dom.betAmount.value = String(max);
+  dom.betLabel.textContent = dom.betAmount.value;
+}
+
+function dispatchAction(action) {
+  if (!lastViewModel || !lastViewModel.isYourTurn) return;
+  const amount = Number(dom.betAmount.value);
+
+  if (mode === "cpu") {
+    cpuTable.action(YOUR_SEAT, action, amount);
+  } else if (mode === "online") {
+    sendWs({ type: "action", action, amount });
+  }
+
+  playSound(460, "triangle", 0.08);
+}
+
+function setMessage(text) {
+  dom.message.innerHTML = text || "";
+}
+
+/* =========================================================
+   効果音
+========================================================= */
+function playSound(freq = 440, type = "sine", duration = 0.08) {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.value = 0.06;
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    osc.stop(ctx.currentTime + duration);
+
+    setTimeout(() => ctx.close(), duration * 1000 + 80);
+  } catch (e) {
+    console.log("Audio unavailable:", e);
+  }
+}
+
+/* =========================================================
+   汎用関数
+========================================================= */
+function escapeHTML(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

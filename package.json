@@ -1,0 +1,15 @@
+{
+  "name": "sakura-poker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "櫻ポーカー - アカウント機能とオンライン対戦サーバー",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build-members": "node tools/build-members.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "xlsx": "^0.18.5"
+  }
+}

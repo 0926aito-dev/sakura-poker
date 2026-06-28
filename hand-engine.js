@@ -38,6 +38,31 @@
     return deck;
   }
 
+  /* 五十音順(あ→ん)で頭文字を比較するための並び順 */
+  const KANA_ORDER = [
+    "あ", "い", "う", "え", "お",
+    "か", "き", "く", "け", "こ",
+    "さ", "し", "す", "せ", "そ",
+    "た", "ち", "つ", "て", "と", "ど",
+    "な", "に", "ぬ", "ね", "の",
+    "は", "ひ", "ふ", "へ", "ほ",
+    "ま", "み", "む", "め", "も",
+    "や", "ゆ", "よ",
+    "ら", "り", "る", "れ", "ろ",
+    "わ", "ゐ", "ゑ", "を", "ん"
+  ];
+
+  /* メンバーを「期の昇順 → 名前の昇順(頭文字の五十音順、同じ頭文字なら文字列順)」で並べる */
+  function sortMembers(members) {
+    return [...members].sort((a, b) => {
+      if (a.gen !== b.gen) return a.gen - b.gen;
+      const ai = KANA_ORDER.indexOf(a.initial);
+      const bi = KANA_ORDER.indexOf(b.initial);
+      if (ai !== bi) return ai - bi;
+      return a.name.localeCompare(b.name, "ja");
+    });
+  }
+
   const BASE_HANDS = [
     { id: "high", label: "ハイカード", type: "high" },
     { id: "genPair", label: "同期ペア", type: "gen", size: 2 },
@@ -245,7 +270,7 @@
 
     function helper(start, combo) {
       if (combo.length === size) {
-        result.push(combo);
+        result.push(combo.slice());
         return;
       }
       for (let i = start; i < array.length; i++) {
@@ -754,6 +779,7 @@
     DECKS,
     COPIES_PER_MEMBER,
     buildDeck,
+    sortMembers,
     BASE_HANDS,
     MIN_CUSTOM_SIZE,
     MAX_CUSTOM_SIZE,

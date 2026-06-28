@@ -601,7 +601,7 @@ function startGameForWs(ws) {
     isBot: () => false,
     isConnected: seat => !!room.sockets[seat],
     isDisposed: () => room.disposed,
-    autoAdvanceMs: 3500
+    autoAdvanceMs: 13500
   });
 
   room.started = true;

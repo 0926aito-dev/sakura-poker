@@ -1173,9 +1173,10 @@ function renderAccountHandsList() {
 
   dom.accountHandsList.innerHTML = sizes.map(size => {
     const rows = poolTypes.map(([poolType, poolLabel]) => {
-      const hand = myHands.find(h => h.names.length === size && (h.poolType || "active") === poolType);
+      const hand = myHands.find(h => SakuraHandEngine.getHandSlots(h).length === size && (h.poolType || "active") === poolType);
+      const slotsText = hand ? SakuraHandEngine.getHandSlots(hand).map(s => escapeHTML(SakuraHandEngine.describeSlot(s))).join("・") : "";
       return hand
-        ? `<div>${size}枚役(${poolLabel})：<b>${escapeHTML(hand.label)}</b>（${hand.names.map(escapeHTML).join("・")}）</div>`
+        ? `<div>${size}枚役(${poolLabel})：<b>${escapeHTML(hand.label)}</b>（${slotsText}）</div>`
         : `<div>${size}枚役(${poolLabel})：<span class="small">未登録</span></div>`;
     });
     return rows.join("");

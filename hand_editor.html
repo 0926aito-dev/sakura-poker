@@ -124,6 +124,29 @@
 
   .selected-count { font-size: 13px; color: rgba(255,255,255,0.78); margin-top: 8px; }
 
+  select {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(0,0,0,0.3);
+    color: white;
+    font-size: 14px;
+  }
+
+  .selected-slots { display: flex; flex-wrap: wrap; gap: 6px; min-height: 20px; }
+  .slot-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(184,108,255,0.35);
+    border: 1px solid rgba(255,255,255,0.3);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .slot-pill .remove-x { color: var(--red); font-weight: 900; }
+
   .preview-box {
     margin-top: 10px;
     padding: 12px;
@@ -209,9 +232,30 @@
       </div>
 
       <div class="field">
-        <label>カードを選択(クリックで選択/解除)</label>
-        <div class="member-grid" id="memberGrid"></div>
+        <label>属性ワイルドカード枠を追加(任意・確率が大幅に上がります)</label>
+        <p class="small" style="margin-bottom:8px;">
+          特定の人ではなく「◯期生の誰か」「グループ◯の誰か」を枠として指定できます。
+          1つの役の中で「期」と「グループ」は混在できません。
+        </p>
+        <div class="actions" style="margin-top:0;">
+          <select id="wildcardTypeSelect">
+            <option value="gen">期(gen)</option>
+            <option value="group">グループ(group)</option>
+          </select>
+          <select id="wildcardValueSelect"></select>
+          <button id="addWildcardBtn" class="blue">この枠を追加</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>選択中の枠</label>
+        <div class="selected-slots" id="selectedSlotsList"></div>
         <div class="selected-count" id="selectedCount">選択中：0 / 2枚</div>
+      </div>
+
+      <div class="field">
+        <label>カードを選択(クリックで選択/解除、人を指名する枠が追加されます)</label>
+        <div class="member-grid" id="memberGrid"></div>
       </div>
 
       <div class="preview-box" id="previewBox">
@@ -258,6 +302,10 @@ const dom = {
   labelInput: $("labelInput"),
   sizeToggle: $("sizeToggle"),
   poolTypeToggle: $("poolTypeToggle"),
+  wildcardTypeSelect: $("wildcardTypeSelect"),
+  wildcardValueSelect: $("wildcardValueSelect"),
+  addWildcardBtn: $("addWildcardBtn"),
+  selectedSlotsList: $("selectedSlotsList"),
   memberGrid: $("memberGrid"),
   selectedCount: $("selectedCount"),
   previewBox: $("previewBox"),
@@ -272,7 +320,7 @@ const dom = {
 let myToken = localStorage.getItem(TOKEN_KEY) || null;
 let myUsername = localStorage.getItem(USERNAME_KEY) || null;
 let myHands = [];
-let selectedNames = [];
+let selectedSlots = []; // [{type:"name",value:"大園玲"}, {type:"gen",value:2}, ...]
 let selectedSize = 2;
 let selectedPoolType = "active";
 
@@ -318,8 +366,9 @@ async function init() {
   dom.backBtn.addEventListener("click", () => { window.location.href = "sakura_poker_fixed.html"; });
   dom.registerBtn.addEventListener("click", registerHand);
   dom.clearSelectionBtn.addEventListener("click", () => {
-    selectedNames = [];
+    selectedSlots = [];
     renderMemberGrid();
+    renderSelectedSlots();
     updatePreview();
   });
   dom.labelInput.addEventListener("input", updatePreview);
@@ -328,8 +377,9 @@ async function init() {
     btn.addEventListener("click", () => {
       selectedSize = Number(btn.dataset.size);
       dom.sizeToggle.querySelectorAll(".size-btn").forEach(b => b.classList.toggle("active", b === btn));
-      if (selectedNames.length > selectedSize) selectedNames = selectedNames.slice(0, selectedSize);
+      if (selectedSlots.length > selectedSize) selectedSlots = selectedSlots.slice(0, selectedSize);
       renderMemberGrid();
+      renderSelectedSlots();
       updatePreview();
     });
   });
@@ -339,14 +389,78 @@ async function init() {
       selectedPoolType = btn.dataset.pool;
       dom.poolTypeToggle.querySelectorAll(".size-btn").forEach(b => b.classList.toggle("active", b === btn));
       if (selectedPoolType === "active") {
-        selectedNames = selectedNames.filter(n => SakuraHandEngine.ACTIVE_MEMBERS.some(m => m.name === n));
+        selectedSlots = selectedSlots.filter(s => s.type !== "name" || SakuraHandEngine.ACTIVE_MEMBERS.some(m => m.name === s.value));
       }
       dom.editorMessage.textContent = "";
       renderMemberGrid();
+      renderSelectedSlots();
+      populateWildcardValueSelect();
       renderRanking();
       updatePreview();
     });
   });
+
+  dom.wildcardTypeSelect.addEventListener("change", populateWildcardValueSelect);
+  dom.addWildcardBtn.addEventListener("click", addWildcardSlot);
+
+  populateWildcardValueSelect();
+  renderSelectedSlots();
+}
+
+function currentPool() {
+  return selectedPoolType === "active" ? SakuraHandEngine.ACTIVE_MEMBERS : SakuraHandEngine.MEMBERS;
+}
+
+function populateWildcardValueSelect() {
+  const type = dom.wildcardTypeSelect.value;
+  const pool = currentPool();
+  const values = [...new Set(pool.map(m => m[type]))].sort((a, b) => (a > b ? 1 : a < b ? -1 : 0));
+  dom.wildcardValueSelect.innerHTML = values
+    .map(v => `<option value="${escapeHTML(String(v))}">${type === "gen" ? `${escapeHTML(String(v))}期` : `グループ${escapeHTML(String(v))}`}</option>`)
+    .join("");
+}
+
+function addWildcardSlot() {
+  const type = dom.wildcardTypeSelect.value;
+  const rawValue = dom.wildcardValueSelect.value;
+  const value = type === "gen" ? Number(rawValue) : rawValue;
+
+  const existingAttrType = selectedSlots.find(s => s.type !== "name");
+  if (existingAttrType && existingAttrType.type !== type) {
+    dom.editorMessage.textContent = "1つの役の中で「期」と「グループ」のワイルドカードは混在できません。";
+    return;
+  }
+  if (selectedSlots.length >= selectedSize) {
+    dom.editorMessage.textContent = `選択できるのは${selectedSize}枚までです。`;
+    return;
+  }
+
+  selectedSlots.push({ type, value });
+  dom.editorMessage.textContent = "";
+  renderSelectedSlots();
+  updatePreview();
+}
+
+function removeSlotAt(index) {
+  selectedSlots.splice(index, 1);
+  renderMemberGrid();
+  renderSelectedSlots();
+  updatePreview();
+}
+
+function renderSelectedSlots() {
+  if (selectedSlots.length === 0) {
+    dom.selectedSlotsList.innerHTML = '<span class="small">まだ枠が選択されていません。</span>';
+  } else {
+    dom.selectedSlotsList.innerHTML = selectedSlots
+      .map((slot, i) => `<span class="slot-pill" data-idx="${i}">${escapeHTML(SakuraHandEngine.describeSlot(slot))} <span class="remove-x">×</span></span>`)
+      .join("");
+    dom.selectedSlotsList.querySelectorAll(".slot-pill").forEach(pill => {
+      pill.addEventListener("click", () => removeSlotAt(Number(pill.dataset.idx)));
+    });
+  }
+
+  dom.selectedCount.textContent = `選択中：${selectedSlots.length} / ${selectedSize}枚`;
 }
 
 /*
@@ -385,22 +499,23 @@ function renderGroupedMemberGrid(container, members, isSelected, onClick, extraL
 }
 
 function countOf(name) {
-  return selectedNames.filter(n => n === name).length;
+  return selectedSlots.filter(s => s.type === "name" && s.value === name).length;
 }
 
 function toggleMember(name) {
   const current = countOf(name);
-  const totalOthers = selectedNames.length - current;
+  const totalOthers = selectedSlots.length - current;
   const maxForThis = Math.min(SakuraHandEngine.COPIES_PER_MEMBER, selectedSize - totalOthers);
 
   let next = current + 1;
   if (next > maxForThis) next = 0;
 
-  selectedNames = selectedNames.filter(n => n !== name);
-  for (let i = 0; i < next; i++) selectedNames.push(name);
+  selectedSlots = selectedSlots.filter(s => !(s.type === "name" && s.value === name));
+  for (let i = 0; i < next; i++) selectedSlots.push({ type: "name", value: name });
 
   dom.editorMessage.textContent = "";
   renderMemberGrid();
+  renderSelectedSlots();
   updatePreview();
 }
 
@@ -418,10 +533,10 @@ function renderMemberGrid() {
 }
 
 function updatePreview() {
-  dom.selectedCount.textContent = `選択中：${selectedNames.length} / ${selectedSize}枚`;
+  dom.selectedCount.textContent = `選択中：${selectedSlots.length} / ${selectedSize}枚`;
 
-  if (selectedNames.length !== selectedSize) {
-    dom.previewBox.innerHTML = `カードを${selectedSize}枚選ぶと、発生確率と想定ランクが表示されます。`;
+  if (selectedSlots.length !== selectedSize) {
+    dom.previewBox.innerHTML = `${selectedSize}枠選ぶと、発生確率と想定ランクが表示されます。`;
     dom.registerBtn.disabled = true;
     return;
   }
@@ -430,9 +545,9 @@ function updatePreview() {
 
   const tempHand = {
     id: "__preview__",
-    label: dom.labelInput.value.trim() || `オリジナル役(${selectedNames.join("・")})`,
+    label: dom.labelInput.value.trim() || `オリジナル役(${selectedSlots.map(SakuraHandEngine.describeSlot).join("・")})`,
     type: "custom",
-    names: [...selectedNames],
+    slots: [...selectedSlots],
     poolType: selectedPoolType
   };
 
@@ -441,11 +556,11 @@ function updatePreview() {
   const prob = SakuraHandEngine.calcHandProbability(tempHand, deckPool);
   const strongestFirst = [...ranking].reverse();
   const positionFromTop = strongestFirst.findIndex(h => h.id === "__preview__") + 1;
-  const existing = myHands.find(h => h.names.length === selectedSize && (h.poolType || "active") === selectedPoolType);
+  const existing = myHands.find(h => SakuraHandEngine.getHandSlots(h).length === selectedSize && (h.poolType || "active") === selectedPoolType);
   const poolLabel = selectedPoolType === "all" ? "全メンバー版" : "在籍メンバーのみ版";
 
   dom.previewBox.innerHTML = `
-    選択カード：<b>${selectedNames.map(escapeHTML).join(" / ")}</b>(${poolLabel})<br>
+    選択した枠：<b>${selectedSlots.map(s => escapeHTML(SakuraHandEngine.describeSlot(s))).join(" / ")}</b>(${poolLabel})<br>
     発生確率：<b>${(prob * 100).toFixed(4)}%</b><br>
     想定ランク：<b>全${ranking.length}役中 上から${positionFromTop}番目</b>(数値が小さいほど強い)
     ${existing ? `<br><span style="color:var(--red);">※ ${selectedSize}枚・${poolLabel}の役「${escapeHTML(existing.label)}」は登録時に上書きされます。</span>` : ""}
@@ -463,32 +578,34 @@ function buildRankingWithExtra(extraHand) {
 
   const poolType = extraHand.poolType;
   const deckPool = SakuraHandEngine.DECKS[poolType];
+  const extraSlotsLength = SakuraHandEngine.getHandSlots(extraHand).length;
   const sameContextHands = myHands.filter(h => poolType === "all" || (h.poolType || "active") === "active");
   const pool = [
-    ...sameContextHands.filter(h => !(h.names.length === extraHand.names.length && (h.poolType || "active") === extraHand.poolType)),
+    ...sameContextHands.filter(h => !(SakuraHandEngine.getHandSlots(h).length === extraSlotsLength && (h.poolType || "active") === extraHand.poolType)),
     extraHand
   ];
   return SakuraHandEngine.buildHandDefs(pool, deckPool).HAND_DEFS;
 }
 
 async function registerHand() {
-  if (selectedNames.length !== selectedSize) return;
+  if (selectedSlots.length !== selectedSize) return;
 
-  const label = dom.labelInput.value.trim() || `オリジナル役(${selectedNames.join("・")})`;
+  const label = dom.labelInput.value.trim() || `オリジナル役(${selectedSlots.map(SakuraHandEngine.describeSlot).join("・")})`;
   dom.editorMessage.textContent = "";
 
   try {
-    const data = await apiCall("/api/hands", "POST", { token: myToken, label, names: [...selectedNames], poolType: selectedPoolType });
+    const data = await apiCall("/api/hands", "POST", { token: myToken, label, slots: [...selectedSlots], poolType: selectedPoolType });
     myHands = data.hands || [];
   } catch (e) {
     dom.editorMessage.textContent = e.message;
     return;
   }
 
-  selectedNames = [];
+  selectedSlots = [];
   dom.labelInput.value = "";
 
   renderMemberGrid();
+  renderSelectedSlots();
   renderCustomList();
   renderRanking();
   updatePreview();
@@ -526,14 +643,15 @@ function renderCustomList() {
     const deckPool = SakuraHandEngine.DECKS[poolType];
     const ranking = rankingByPool[poolType];
     const strongestFirst = [...ranking].reverse();
-    const prob = SakuraHandEngine.calcHandProbability({ type: "custom", names: hand.names }, deckPool);
+    const slots = SakuraHandEngine.getHandSlots(hand);
+    const prob = SakuraHandEngine.calcHandProbability({ type: "custom", slots }, deckPool);
     const position = strongestFirst.findIndex(h => h.id === hand.id) + 1;
 
     rows += `
       <tr>
         <td>${escapeHTML(hand.label)}</td>
         <td>${poolLabel}</td>
-        <td>${hand.names.length}枚：${hand.names.map(escapeHTML).join(" / ")}</td>
+        <td>${slots.length}枠：${slots.map(s => escapeHTML(SakuraHandEngine.describeSlot(s))).join(" / ")}</td>
         <td>${(prob * 100).toFixed(4)}%</td>
         <td>上から${position}番目 / 全${ranking.length}役</td>
         <td><button class="danger" data-id="${escapeHTML(hand.id)}">削除</button></td>

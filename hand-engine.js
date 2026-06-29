@@ -94,29 +94,58 @@
   }
 
   /*
-    同じメンバーは(物理カードが4枚あるため)最大4枚まで重複指定できます。
-    例: ["大園玲","大園玲"] は「大園玲を2枚以上」を意味します。
+    オリジナル役の「枠(スロット)」は2種類:
+      - { type:"name", value:"大園玲" }  … 特定の人を指名する枠(同じ人を最大4枚まで重複指定可)
+      - { type:"gen",  value:2 }         … 「2期生の誰か」を指す属性ワイルドカード枠
+      - { type:"group",value:"R" }       … 「グループRの誰か」を指す属性ワイルドカード枠
+    属性ワイルドカード枠は1つの役の中で gen と group を混在させることはできません
+    (確率計算を厳密に行うための制約)。
+    旧形式(names配列のみ)のデータは自動的に name枠の配列として扱います。
   */
-  function isValidCustomNames(names) {
-    if (!Array.isArray(names) || names.length < MIN_CUSTOM_SIZE || names.length > MAX_CUSTOM_SIZE) {
+  function getHandSlots(handDef) {
+    if (Array.isArray(handDef.slots) && handDef.slots.length > 0) return handDef.slots;
+    if (Array.isArray(handDef.names)) return handDef.names.map(n => ({ type: "name", value: n }));
+    return [];
+  }
+
+  function describeSlot(slot) {
+    if (slot.type === "name") return slot.value;
+    if (slot.type === "gen") return `${slot.value}期の誰か`;
+    if (slot.type === "group") return `グループ${slot.value}の誰か`;
+    return "?";
+  }
+
+  function validateSlotsAgainstPool(slots, pool) {
+    if (!Array.isArray(slots) || slots.length < MIN_CUSTOM_SIZE || slots.length > MAX_CUSTOM_SIZE) {
       return false;
     }
 
-    const counts = {};
-    for (const n of names) {
-      counts[n] = (counts[n] || 0) + 1;
-      if (counts[n] > COPIES_PER_MEMBER) return false;
+    const nameCounts = {};
+    const attrTypesUsed = new Set();
+
+    for (const slot of slots) {
+      if (!slot || typeof slot !== "object") return false;
+
+      if (slot.type === "name") {
+        if (typeof slot.value !== "string") return false;
+        nameCounts[slot.value] = (nameCounts[slot.value] || 0) + 1;
+        if (nameCounts[slot.value] > COPIES_PER_MEMBER) return false;
+        if (!pool.some(m => m.name === slot.value)) return false;
+      } else if (slot.type === "gen" || slot.type === "group") {
+        if (!pool.some(m => m[slot.type] === slot.value)) return false;
+        attrTypesUsed.add(slot.type);
+      } else {
+        return false;
+      }
     }
 
-    return names.every(n => MEMBERS.some(m => m.name === n));
+    if (attrTypesUsed.size > 1) return false; // gen枠とgroup枠の混在は不可
+
+    return true;
   }
 
-  function matchesCustomHand(cards, names) {
-    const required = {};
-    for (const n of names) required[n] = (required[n] || 0) + 1;
-
-    const available = countBy(cards, "name");
-    return Object.keys(required).every(n => (available[n] || 0) >= required[n]);
+  function isValidSlots(slots) {
+    return validateSlotsAgainstPool(slots, MEMBERS);
   }
 
   /*
@@ -124,17 +153,77 @@
     1つずつ登録できます。poolTypeが"active"の場合は在籍メンバーのみで
     構成されているかを追加で検証します。
   */
-  function isValidCustomNamesForPool(names, poolType) {
-    if (!isValidCustomNames(names)) return false;
-    if (poolType === "active") {
-      return names.every(n => ACTIVE_MEMBERS.some(m => m.name === n));
-    }
+  function isValidSlotsForPool(slots, poolType) {
+    if (!isValidSlots(slots)) return false;
+    if (poolType === "active") return validateSlotsAgainstPool(slots, ACTIVE_MEMBERS);
     return true;
+  }
+
+  /* 旧API(name配列のみ)との後方互換ラッパー */
+  function isValidCustomNames(names) {
+    return isValidSlots((names || []).map(n => ({ type: "name", value: n })));
+  }
+
+  function isValidCustomNamesForPool(names, poolType) {
+    return isValidSlotsForPool((names || []).map(n => ({ type: "name", value: n })), poolType);
+  }
+
+  /*
+    5枚のカードが指定スロットを満たすか判定します。name枠は必要枚数分の
+    カードを先に確保し、残ったカードを属性ワイルドカード枠に1枚ずつ
+    重複なく割り当てられるかをバックトラックで確認します。
+  */
+  function matchesCustomSlots(cards, slots) {
+    const nameSlots = slots.filter(s => s.type === "name");
+    const attrSlots = slots.filter(s => s.type !== "name");
+
+    const nameRequired = {};
+    for (const s of nameSlots) nameRequired[s.value] = (nameRequired[s.value] || 0) + 1;
+
+    const usedIdx = new Set();
+    for (const name of Object.keys(nameRequired)) {
+      let need = nameRequired[name];
+      for (let i = 0; i < cards.length && need > 0; i++) {
+        if (usedIdx.has(i)) continue;
+        if (cards[i].name === name) {
+          usedIdx.add(i);
+          need--;
+        }
+      }
+      if (need > 0) return false;
+    }
+
+    if (attrSlots.length === 0) return true;
+
+    const freeIndices = cards.map((c, i) => i).filter(i => !usedIdx.has(i));
+
+    function attrMatches(card, slot) {
+      return card[slot.type] === slot.value;
+    }
+
+    function backtrack(slotIdx, available) {
+      if (slotIdx === attrSlots.length) return true;
+      const slot = attrSlots[slotIdx];
+      for (let k = 0; k < available.length; k++) {
+        const idx = available[k];
+        if (attrMatches(cards[idx], slot)) {
+          const next = available.slice(0, k).concat(available.slice(k + 1));
+          if (backtrack(slotIdx + 1, next)) return true;
+        }
+      }
+      return false;
+    }
+
+    return backtrack(0, freeIndices);
+  }
+
+  function matchesCustomHand(cards, names) {
+    return matchesCustomSlots(cards, (names || []).map(n => ({ type: "name", value: n })));
   }
 
   function handMatchesType(cards, handDef) {
     if (handDef.type === "high") return true;
-    if (handDef.type === "custom") return matchesCustomHand(cards, handDef.names);
+    if (handDef.type === "custom") return matchesCustomSlots(cards, getHandSlots(handDef));
 
     const genCounts = countBy(cards, "gen");
     const genValues = Object.values(genCounts).sort((a, b) => b - a);
@@ -204,46 +293,109 @@
   }
 
   /*
-    指名された名前が、必要な枚数(同じ名前が複数回指定されていれば「その人を○枚以上」)
-    だけ5枚の中に含まれる確率。各人の残り枚数(指名以外の枠)を「その他」として
-    まとめ、各指名者の引いた枚数(必要数以上)と「その他」の枚数の組み合わせを
-    すべて列挙して正確に計算します(同期役の確率計算と同じ列挙方式)。
+    オリジナル役の発生確率(name枠 + 属性ワイルドカード枠の混在に対応)。
+
+    考え方:
+    1. 指名された各人(name枠)について、引いた枚数n(必要枚数〜4枚)を列挙する。
+       必要枚数を超えた分(余り)は、その人の期/グループに該当する属性ワイルドカード枠
+       にも使える(同じ人の別の物理カードなので当然そのgen/groupを持つため)。
+    2. 指名者以外の「その他」カードについて、属性ワイルドカード枠が要求する
+       値(例: 2期, グループR)ごとの人数構成を列挙する。
+    3. 1の余りと2の合計が、各ワイルドカード値の必要数を満たすかを確認する。
+    gen枠とgroup枠は同じ役の中で混在しない(validateSlotsAgainstPoolで保証済み)ため、
+    属性の種類は最大1つだけ扱えばよい。
   */
   function exactCustomProbability(handDef, pool) {
     pool = pool || MEMBERS;
-    const validInPool =
-      isValidCustomNames(handDef.names) &&
-      handDef.names.every(n => pool.some(p => p.name === n));
-    if (!validInPool) return 0;
+    const slots = getHandSlots(handDef);
+    if (!validateSlotsAgainstPool(slots, pool)) return 0;
 
     const total = pool.length * COPIES_PER_MEMBER;
     const totalCombos = comb(total, 5);
     if (totalCombos === 0) return 0;
 
-    const requiredCount = {};
-    for (const n of handDef.names) requiredCount[n] = (requiredCount[n] || 0) + 1;
-    const distinctNames = Object.keys(requiredCount);
-    const othersCapacity = total - COPIES_PER_MEMBER * distinctNames.length;
+    const nameSlots = slots.filter(s => s.type === "name");
+    const attrSlots = slots.filter(s => s.type !== "name");
+    const attrType = attrSlots.length ? attrSlots[0].type : null;
 
-    let favorable = 0;
+    const nameRequired = {};
+    for (const s of nameSlots) nameRequired[s.value] = (nameRequired[s.value] || 0) + 1;
+    const namedList = Object.keys(nameRequired);
 
-    function enumerate(idx, remaining, ways) {
-      if (idx === distinctNames.length) {
-        if (remaining >= 0 && remaining <= othersCapacity) {
-          favorable += ways * comb(othersCapacity, remaining);
-        }
-        return;
+    const wildcardRequired = {};
+    for (const s of attrSlots) wildcardRequired[s.value] = (wildcardRequired[s.value] || 0) + 1;
+
+    const otherMembers = pool.filter(p => !namedList.includes(p.name));
+    const otherGroupSizes = {};
+    if (attrType) {
+      for (const p of otherMembers) {
+        const v = p[attrType];
+        otherGroupSizes[v] = (otherGroupSizes[v] || 0) + 1;
       }
+    }
+    const otherAttrKeys = Object.keys(otherGroupSizes);
+    const otherTotal = otherMembers.length * COPIES_PER_MEMBER;
 
-      const req = requiredCount[distinctNames[idx]];
-      for (let c = req; c <= COPIES_PER_MEMBER; c++) {
-        const nextRemaining = remaining - c;
-        if (nextRemaining < 0) break;
-        enumerate(idx + 1, nextRemaining, ways * comb(COPIES_PER_MEMBER, c));
+    const namedAttrValue = {};
+    if (attrType) {
+      for (const n of namedList) {
+        const member = pool.find(p => p.name === n);
+        namedAttrValue[n] = member ? member[attrType] : null;
       }
     }
 
-    enumerate(0, 5, 1);
+    let favorable = 0;
+
+    function resolveOther(remaining, surplusByAttr, ways) {
+      if (remaining < 0) return;
+
+      if (!attrType) {
+        if (remaining <= otherTotal) favorable += ways * comb(otherTotal, remaining);
+        return;
+      }
+
+      function enumerateOther(idx, rem, w, drawnByAttr) {
+        if (idx === otherAttrKeys.length) {
+          if (rem !== 0) return;
+          const ok = Object.keys(wildcardRequired).every(v => {
+            const have = (surplusByAttr[v] || 0) + (drawnByAttr[v] || 0);
+            return have >= wildcardRequired[v];
+          });
+          if (ok) favorable += w;
+          return;
+        }
+
+        const v = otherAttrKeys[idx];
+        const capacity = otherGroupSizes[v] * COPIES_PER_MEMBER;
+        const maxDraw = Math.min(capacity, rem);
+        for (let d = 0; d <= maxDraw; d++) {
+          enumerateOther(idx + 1, rem - d, w * comb(capacity, d), { ...drawnByAttr, [v]: d });
+        }
+      }
+
+      enumerateOther(0, remaining, ways, {});
+    }
+
+    function recurseNamed(idx, surplusByAttr, drawnFromNamed, ways) {
+      if (idx === namedList.length) {
+        resolveOther(5 - drawnFromNamed, surplusByAttr, ways);
+        return;
+      }
+
+      const name = namedList[idx];
+      const need = nameRequired[name];
+      for (let n = need; n <= COPIES_PER_MEMBER; n++) {
+        const surplus = n - need;
+        const nextSurplus = { ...surplusByAttr };
+        if (attrType) {
+          const v = namedAttrValue[name];
+          nextSurplus[v] = (nextSurplus[v] || 0) + surplus;
+        }
+        recurseNamed(idx + 1, nextSurplus, drawnFromNamed + n, ways * comb(COPIES_PER_MEMBER, n));
+      }
+    }
+
+    recurseNamed(0, {}, 0, 1);
 
     return favorable / totalCombos;
   }
@@ -264,14 +416,17 @@
     pool = pool || MEMBERS;
     const seen = new Set();
     let customPool = (customHands || [])
-      .filter(h => h && isValidCustomNames(h.names) && !seen.has(h.id) && seen.add(h.id))
-      .map(h => ({
-        id: h.id,
-        label: h.label || `オリジナル役(${h.names.join("・")})`,
-        type: "custom",
-        names: h.names,
-        probability: calcHandProbability({ type: "custom", names: h.names }, pool)
-      }));
+      .filter(h => h && isValidSlots(getHandSlots(h)) && !seen.has(h.id) && seen.add(h.id))
+      .map(h => {
+        const slots = getHandSlots(h);
+        return {
+          id: h.id,
+          label: h.label || `オリジナル役(${slots.map(describeSlot).join("・")})`,
+          type: "custom",
+          slots,
+          probability: calcHandProbability({ type: "custom", slots }, pool)
+        };
+      });
 
     const fixedBase = BASE_HANDS
       .filter(h => h.type !== "high")
@@ -436,46 +591,101 @@
     }
 
     function liveCustomProbability(handDef) {
-      const requiredCount = {};
-      for (const n of handDef.names) requiredCount[n] = (requiredCount[n] || 0) + 1;
+      const slots = getHandSlots(handDef);
+      const nameSlots = slots.filter(s => s.type === "name");
+      const attrSlots = slots.filter(s => s.type !== "name");
+      const attrType = attrSlots.length ? attrSlots[0].type : null;
 
-      // すでに必要枚数を満たしている人は除外し、足りない人だけ残り枚数から引けるか判定する
-      const stillNeeded = {};
-      for (const n of Object.keys(requiredCount)) {
-        const need = requiredCount[n] - (knownCountByName[n] || 0);
-        if (need > 0) stillNeeded[n] = need;
-      }
+      const nameRequired = {};
+      for (const s of nameSlots) nameRequired[s.value] = (nameRequired[s.value] || 0) + 1;
+      const namedList = Object.keys(nameRequired);
 
-      const distinctNames = Object.keys(stillNeeded);
-      if (distinctNames.length === 0) return 1;
-      if (!distinctNames.every(n => remainingByName[n] !== undefined)) return 0;
-      if (drawsRemaining === 0) return 0;
+      const wildcardRequired = {};
+      for (const s of attrSlots) wildcardRequired[s.value] = (wildcardRequired[s.value] || 0) + 1;
+
+      if (!namedList.every(n => remainingByName[n] !== undefined)) return 0;
 
       const totalCombos = comb(remainingPoolSize, drawsRemaining);
       if (totalCombos === 0) return 0;
 
-      let favorable = 0;
-
-      function enumerate(idx, remaining, ways) {
-        if (idx === distinctNames.length) {
-          const othersCapacity = remainingPoolSize - distinctNames.reduce((s, n) => s + remainingByName[n], 0);
-          if (remaining >= 0 && remaining <= othersCapacity) {
-            favorable += ways * comb(othersCapacity, remaining);
-          }
-          return;
-        }
-
-        const name = distinctNames[idx];
-        const need = stillNeeded[name];
-        const cap = remainingByName[name];
-        for (let c = need; c <= cap; c++) {
-          const nextRemaining = remaining - c;
-          if (nextRemaining < 0) break;
-          enumerate(idx + 1, nextRemaining, ways * comb(cap, c));
+      // 既知カードのうち「指名者以外」のものを属性値ごとに数える(確定済みの寄与分)
+      const knownOtherByAttr = {};
+      if (attrType) {
+        for (const c of known) {
+          if (namedList.includes(c.name)) continue;
+          const v = c[attrType];
+          knownOtherByAttr[v] = (knownOtherByAttr[v] || 0) + 1;
         }
       }
 
-      enumerate(0, drawsRemaining, 1);
+      // 指名者以外の「残り」を属性値ごとに集計(既知分はremainingByNameで反映済み)
+      const otherRemainingByAttr = {};
+      if (attrType) {
+        for (const m of pool) {
+          if (namedList.includes(m.name)) continue;
+          const v = m[attrType];
+          otherRemainingByAttr[v] = (otherRemainingByAttr[v] || 0) + Math.max(0, remainingByName[m.name]);
+        }
+      }
+      const otherAttrKeys = Object.keys(otherRemainingByAttr);
+      const otherRemainingNoAttr = remainingPoolSize - namedList.reduce((s, n) => s + remainingByName[n], 0);
+
+      let favorable = 0;
+
+      function resolveOther(remaining, surplusByAttr, ways) {
+        if (remaining < 0) return;
+
+        if (!attrType) {
+          if (remaining <= otherRemainingNoAttr) favorable += ways * comb(otherRemainingNoAttr, remaining);
+          return;
+        }
+
+        function enumerateOther(idx, rem, w, drawnByAttr) {
+          if (idx === otherAttrKeys.length) {
+            if (rem !== 0) return;
+            const ok = Object.keys(wildcardRequired).every(v => {
+              const have = (knownOtherByAttr[v] || 0) + (surplusByAttr[v] || 0) + (drawnByAttr[v] || 0);
+              return have >= wildcardRequired[v];
+            });
+            if (ok) favorable += w;
+            return;
+          }
+
+          const v = otherAttrKeys[idx];
+          const capacity = otherRemainingByAttr[v];
+          const maxDraw = Math.min(capacity, rem);
+          for (let d = 0; d <= maxDraw; d++) {
+            enumerateOther(idx + 1, rem - d, w * comb(capacity, d), { ...drawnByAttr, [v]: d });
+          }
+        }
+
+        enumerateOther(0, remaining, ways, {});
+      }
+
+      function recurseNamed(idx, surplusByAttr, futureDrawnFromNamed, ways) {
+        if (idx === namedList.length) {
+          resolveOther(drawsRemaining - futureDrawnFromNamed, surplusByAttr, ways);
+          return;
+        }
+
+        const name = namedList[idx];
+        const totalSeen = knownCountByName[name] || 0;
+        const need = Math.max(0, nameRequired[name] - totalSeen);
+        const cap = remainingByName[name];
+
+        for (let c = need; c <= cap; c++) {
+          const totalAfter = totalSeen + c;
+          const surplus = Math.max(0, totalAfter - nameRequired[name]);
+          const nextSurplus = { ...surplusByAttr };
+          if (attrType) {
+            const v = pool.find(p => p.name === name)[attrType];
+            nextSurplus[v] = (nextSurplus[v] || 0) + surplus;
+          }
+          recurseNamed(idx + 1, nextSurplus, futureDrawnFromNamed + c, ways * comb(cap, c));
+        }
+      }
+
+      recurseNamed(0, {}, 0, 1);
 
       return favorable / totalCombos;
     }
@@ -844,6 +1054,11 @@
     isValidCustomNames,
     isValidCustomNamesForPool,
     matchesCustomHand,
+    getHandSlots,
+    describeSlot,
+    isValidSlots,
+    isValidSlotsForPool,
+    matchesCustomSlots,
     handMatchesType,
     calcHandProbability,
     buildHandDefs,

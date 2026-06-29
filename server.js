@@ -274,29 +274,32 @@ async function handleApi(req, res, pathname, query) {
       const username = tokens.get(body.token);
       if (!username) return sendJson(res, 401, { error: "認証エラーです。再度ログインしてください。" });
 
-      const names = body.names;
       const poolType = body.poolType === "all" ? "all" : "active";
+      const slots = Array.isArray(body.slots)
+        ? body.slots
+        : (Array.isArray(body.names) ? body.names.map(n => ({ type: "name", value: n })) : null);
 
-      if (!SakuraHandEngine.isValidCustomNamesForPool(names, poolType)) {
+      if (!slots || !SakuraHandEngine.isValidSlotsForPool(slots, poolType)) {
         return sendJson(res, 400, {
           error: poolType === "active"
-            ? "カードは2〜5枚、重複なしで実在する在籍メンバーの名前を指定してください(卒業済みメンバーは「全メンバー版」で指定してください)。"
-            : "カードは2〜5枚、重複なしで実在するメンバー名を指定してください。"
+            ? "枠の指定が正しくありません。2〜5枠、在籍メンバー(または期/グループのワイルドカード)のみを指定してください(gen枠とgroup枠は混在できません)。"
+            : "枠の指定が正しくありません。2〜5枠で指定してください(gen枠とgroup枠は混在できません)。"
         });
       }
 
-      const label = (body.label || "").toString().trim().slice(0, 30) || `オリジナル役(${names.join("・")})`;
+      const label = (body.label || "").toString().trim().slice(0, 30)
+        || `オリジナル役(${slots.map(SakuraHandEngine.describeSlot).join("・")})`;
       const hand = {
         id: `custom_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
         label,
-        names,
+        slots,
         poolType
       };
 
-      // 1アカウントにつき、枚数(2/3/4/5枚)×プール種別(在籍のみ/全メンバー)ごとに
-      // 登録できるオリジナル役は1つまで(同じ枚数・同じプール種別で再登録すると上書き)。
+      // 1アカウントにつき、枠数(2/3/4/5)×プール種別(在籍のみ/全メンバー)ごとに
+      // 登録できるオリジナル役は1つまで(同じ枠数・同じプール種別で再登録すると上書き)。
       db.users[username].hands = getUserHands(username)
-        .filter(h => !(h.names.length === names.length && (h.poolType || "active") === poolType));
+        .filter(h => !(SakuraHandEngine.getHandSlots(h).length === slots.length && (h.poolType || "active") === poolType));
       db.users[username].hands.push(hand);
       saveDb();
       return sendJson(res, 200, { hands: getUserHands(username) });

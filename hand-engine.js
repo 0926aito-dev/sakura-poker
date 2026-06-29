@@ -94,12 +94,15 @@
   }
 
   /*
-    オリジナル役の「枠(スロット)」は2種類:
+    オリジナル役の「枠(スロット)」は4種類:
       - { type:"name", value:"大園玲" }  … 特定の人を指名する枠(同じ人を最大4枚まで重複指定可)
       - { type:"gen",  value:2 }         … 「2期生の誰か」を指す属性ワイルドカード枠
       - { type:"group",value:"R" }       … 「グループRの誰か」を指す属性ワイルドカード枠
+      - { type:"wild" }                  … 「誰でもいい」無条件枠(発生確率を上げるための枠。
+                                            何の制約も課さないため確率計算には一切関与しない)
     属性ワイルドカード枠は1つの役の中で gen と group を混在させることはできません
-    (確率計算を厳密に行うための制約)。
+    (確率計算を厳密に行うための制約)。wild枠だけの役(実質ノーコンディション)は
+    意味がないため、name/gen/group のいずれかを最低1枠は必要とします。
     旧形式(names配列のみ)のデータは自動的に name枠の配列として扱います。
   */
   function getHandSlots(handDef) {
@@ -112,6 +115,7 @@
     if (slot.type === "name") return slot.value;
     if (slot.type === "gen") return `${slot.value}期の誰か`;
     if (slot.type === "group") return `グループ${slot.value}の誰か`;
+    if (slot.type === "wild") return "ワイルド(誰でも)";
     return "?";
   }
 
@@ -122,6 +126,7 @@
 
     const nameCounts = {};
     const attrTypesUsed = new Set();
+    let realSlotCount = 0;
 
     for (const slot of slots) {
       if (!slot || typeof slot !== "object") return false;
@@ -131,15 +136,20 @@
         nameCounts[slot.value] = (nameCounts[slot.value] || 0) + 1;
         if (nameCounts[slot.value] > COPIES_PER_MEMBER) return false;
         if (!pool.some(m => m.name === slot.value)) return false;
+        realSlotCount++;
       } else if (slot.type === "gen" || slot.type === "group") {
         if (!pool.some(m => m[slot.type] === slot.value)) return false;
         attrTypesUsed.add(slot.type);
+        realSlotCount++;
+      } else if (slot.type === "wild") {
+        // 無条件枠: 値の検証は不要
       } else {
         return false;
       }
     }
 
     if (attrTypesUsed.size > 1) return false; // gen枠とgroup枠の混在は不可
+    if (realSlotCount === 0) return false; // wild枠だけの役は不可
 
     return true;
   }
@@ -174,8 +184,9 @@
     重複なく割り当てられるかをバックトラックで確認します。
   */
   function matchesCustomSlots(cards, slots) {
-    const nameSlots = slots.filter(s => s.type === "name");
-    const attrSlots = slots.filter(s => s.type !== "name");
+    const realSlots = slots.filter(s => s.type !== "wild"); // wild枠は無条件なので判定に関与しない
+    const nameSlots = realSlots.filter(s => s.type === "name");
+    const attrSlots = realSlots.filter(s => s.type !== "name");
 
     const nameRequired = {};
     for (const s of nameSlots) nameRequired[s.value] = (nameRequired[s.value] || 0) + 1;
@@ -314,8 +325,9 @@
     const totalCombos = comb(total, 5);
     if (totalCombos === 0) return 0;
 
-    const nameSlots = slots.filter(s => s.type === "name");
-    const attrSlots = slots.filter(s => s.type !== "name");
+    const realSlots = slots.filter(s => s.type !== "wild"); // wild枠は確率計算に関与しない
+    const nameSlots = realSlots.filter(s => s.type === "name");
+    const attrSlots = realSlots.filter(s => s.type !== "name");
     const attrType = attrSlots.length ? attrSlots[0].type : null;
 
     const nameRequired = {};
@@ -591,7 +603,7 @@
     }
 
     function liveCustomProbability(handDef) {
-      const slots = getHandSlots(handDef);
+      const slots = getHandSlots(handDef).filter(s => s.type !== "wild"); // wild枠は確率計算に関与しない
       const nameSlots = slots.filter(s => s.type === "name");
       const attrSlots = slots.filter(s => s.type !== "name");
       const attrType = attrSlots.length ? attrSlots[0].type : null;

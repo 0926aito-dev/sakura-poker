@@ -263,6 +263,17 @@
       </div>
 
       <div class="field">
+        <label>ワイルド枠を追加(任意・誰でもよい無条件の枠。確率を最も大きく上げられます)</label>
+        <p class="small" style="margin-bottom:8px;">
+          完全に「誰でもいい」枠です。役全体が無条件にならないよう、name/期/グループの
+          いずれかの枠を最低1つは残してください。
+        </p>
+        <div class="actions" style="margin-top:0;">
+          <button id="addWildBtn" class="success">ワイルド枠を追加</button>
+        </div>
+      </div>
+
+      <div class="field">
         <label>選択中の枠</label>
         <div class="selected-slots" id="selectedSlotsList"></div>
         <div class="selected-count" id="selectedCount">選択中：0 / 2枚</div>
@@ -320,6 +331,7 @@ const dom = {
   wildcardTypeSelect: $("wildcardTypeSelect"),
   wildcardValueSelect: $("wildcardValueSelect"),
   addWildcardBtn: $("addWildcardBtn"),
+  addWildBtn: $("addWildBtn"),
   selectedSlotsList: $("selectedSlotsList"),
   memberGrid: $("memberGrid"),
   selectedCount: $("selectedCount"),
@@ -417,6 +429,7 @@ async function init() {
 
   dom.wildcardTypeSelect.addEventListener("change", populateWildcardValueSelect);
   dom.addWildcardBtn.addEventListener("click", addWildcardSlot);
+  dom.addWildBtn.addEventListener("click", addWildSlot);
 
   populateWildcardValueSelect();
   renderSelectedSlots();
@@ -440,7 +453,7 @@ function addWildcardSlot() {
   const rawValue = dom.wildcardValueSelect.value;
   const value = type === "gen" ? Number(rawValue) : rawValue;
 
-  const existingAttrType = selectedSlots.find(s => s.type !== "name");
+  const existingAttrType = selectedSlots.find(s => s.type === "gen" || s.type === "group");
   if (existingAttrType && existingAttrType.type !== type) {
     dom.editorMessage.textContent = "1つの役の中で「期」と「グループ」のワイルドカードは混在できません。";
     return;
@@ -451,6 +464,18 @@ function addWildcardSlot() {
   }
 
   selectedSlots.push({ type, value });
+  dom.editorMessage.textContent = "";
+  renderSelectedSlots();
+  updatePreview();
+}
+
+function addWildSlot() {
+  if (selectedSlots.length >= selectedSize) {
+    dom.editorMessage.textContent = `選択できるのは${selectedSize}枚までです。`;
+    return;
+  }
+
+  selectedSlots.push({ type: "wild" });
   dom.editorMessage.textContent = "";
   renderSelectedSlots();
   updatePreview();

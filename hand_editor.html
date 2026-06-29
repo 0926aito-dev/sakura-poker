@@ -137,15 +137,30 @@
   .slot-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
+    gap: 4px;
+    padding: 5px 8px;
     border-radius: 999px;
     background: rgba(184,108,255,0.35);
     border: 1px solid rgba(255,255,255,0.3);
     font-size: 12px;
-    cursor: pointer;
   }
-  .slot-pill .remove-x { color: var(--red); font-weight: 900; }
+  .slot-pill .slot-step {
+    appearance: none;
+    border: none;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    color: white;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: none;
+  }
+  .slot-pill .slot-step:hover { background: rgba(255,255,255,0.4); filter: none; }
+  .slot-pill .slot-step:active { transform: none; box-shadow: none; }
 
   .preview-box {
     margin-top: 10px;
@@ -441,8 +456,32 @@ function addWildcardSlot() {
   updatePreview();
 }
 
-function removeSlotAt(index) {
-  selectedSlots.splice(index, 1);
+/* 同じ枠(type+value)をまとめて「×n」として表示するためのグルーピング */
+function groupedSelectedSlots() {
+  const groups = [];
+  for (const slot of selectedSlots) {
+    const existing = groups.find(g => g.type === slot.type && g.value === slot.value);
+    if (existing) existing.count++;
+    else groups.push({ type: slot.type, value: slot.value, count: 1 });
+  }
+  return groups;
+}
+
+function maxCountFor(type, value, currentCount) {
+  const totalOthers = selectedSlots.length - currentCount;
+  const hardCap = type === "name" ? SakuraHandEngine.COPIES_PER_MEMBER : selectedSize;
+  return Math.min(hardCap, selectedSize - totalOthers);
+}
+
+function adjustSlotCount(type, value, delta) {
+  const current = selectedSlots.filter(s => s.type === type && s.value === value).length;
+  const max = maxCountFor(type, value, current);
+  const next = Math.max(0, Math.min(max, current + delta));
+
+  selectedSlots = selectedSlots.filter(s => !(s.type === type && s.value === value));
+  for (let i = 0; i < next; i++) selectedSlots.push({ type, value });
+
+  dom.editorMessage.textContent = "";
   renderMemberGrid();
   renderSelectedSlots();
   updatePreview();
@@ -452,11 +491,21 @@ function renderSelectedSlots() {
   if (selectedSlots.length === 0) {
     dom.selectedSlotsList.innerHTML = '<span class="small">まだ枠が選択されていません。</span>';
   } else {
-    dom.selectedSlotsList.innerHTML = selectedSlots
-      .map((slot, i) => `<span class="slot-pill" data-idx="${i}">${escapeHTML(SakuraHandEngine.describeSlot(slot))} <span class="remove-x">×</span></span>`)
+    dom.selectedSlotsList.innerHTML = groupedSelectedSlots()
+      .map(g => `
+        <span class="slot-pill">
+          ${escapeHTML(SakuraHandEngine.describeSlot(g))}${g.count > 1 ? `×${g.count}` : ""}
+          <button type="button" class="slot-step" data-type="${escapeHTML(g.type)}" data-value="${escapeHTML(String(g.value))}" data-delta="-1">−</button>
+          <button type="button" class="slot-step" data-type="${escapeHTML(g.type)}" data-value="${escapeHTML(String(g.value))}" data-delta="1">＋</button>
+        </span>
+      `)
       .join("");
-    dom.selectedSlotsList.querySelectorAll(".slot-pill").forEach(pill => {
-      pill.addEventListener("click", () => removeSlotAt(Number(pill.dataset.idx)));
+    dom.selectedSlotsList.querySelectorAll(".slot-step").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const type = btn.dataset.type;
+        const value = type === "gen" ? Number(btn.dataset.value) : btn.dataset.value;
+        adjustSlotCount(type, value, Number(btn.dataset.delta));
+      });
     });
   }
 
@@ -502,16 +551,22 @@ function countOf(name) {
   return selectedSlots.filter(s => s.type === "name" && s.value === name).length;
 }
 
+/* グリッドのクリックは単純なON/OFFトグル(1枚追加 or 全て解除)。
+   2枚目以降は選択中の枠リストの「＋」ボタンで増やす(#2: クリック回数で枚数を決めない)。 */
 function toggleMember(name) {
   const current = countOf(name);
-  const totalOthers = selectedSlots.length - current;
-  const maxForThis = Math.min(SakuraHandEngine.COPIES_PER_MEMBER, selectedSize - totalOthers);
-
-  let next = current + 1;
-  if (next > maxForThis) next = 0;
 
   selectedSlots = selectedSlots.filter(s => !(s.type === "name" && s.value === name));
-  for (let i = 0; i < next; i++) selectedSlots.push({ type: "name", value: name });
+
+  if (current === 0) {
+    if (selectedSlots.length >= selectedSize) {
+      dom.editorMessage.textContent = `選択できるのは${selectedSize}枚までです。`;
+      renderMemberGrid();
+      renderSelectedSlots();
+      return;
+    }
+    selectedSlots.push({ type: "name", value: name });
+  }
 
   dom.editorMessage.textContent = "";
   renderMemberGrid();

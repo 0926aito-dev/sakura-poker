@@ -179,27 +179,50 @@
   .chips-inline span { display: block; font-size: 12px; color: rgba(255,255,255,0.74); white-space: nowrap; }
   .chips-inline b { display: block; margin-top: 3px; font-size: 24px; color: var(--gold); white-space: nowrap; }
 
-  .hand-panel {
-    padding: 14px 16px;
-    border-radius: 18px;
+  .hand-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border-radius: 16px;
     background: linear-gradient(135deg, rgba(184,108,255,0.22), rgba(255,143,216,0.16));
     border: 1px solid rgba(255,255,255,0.28);
-    margin-bottom: 14px;
-  }
-
-  .hand-panel-title { font-size: 12px; color: rgba(255,255,255,0.78); margin-bottom: 6px; }
-
-  .hand-panel-name {
-    font-size: 24px;
-    font-weight: 1000;
-    color: var(--gold);
-    text-shadow: 0 0 16px rgba(255,216,107,0.55);
     margin-bottom: 10px;
   }
 
-  .hand-gauge { display: flex; gap: 5px; flex-wrap: wrap; }
-  .hand-gauge-seg { flex: 1; min-width: 4px; height: 9px; border-radius: 999px; background: rgba(255,255,255,0.16); transition: background 0.2s ease; }
+  .hand-panel-title { font-size: 12px; color: rgba(255,255,255,0.78); }
+
+  .hand-panel-name {
+    font-size: 18px;
+    font-weight: 1000;
+    color: var(--gold);
+    text-shadow: 0 0 16px rgba(255,216,107,0.55);
+  }
+
+  .hand-gauge { display: flex; gap: 4px; flex: 1 1 80px; min-width: 60px; }
+  .hand-gauge-seg { flex: 1; min-width: 4px; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.16); transition: background 0.2s ease; }
   .hand-gauge-seg.filled { background: linear-gradient(135deg, var(--main), var(--gold)); box-shadow: 0 0 8px rgba(255,216,107,0.6); }
+
+  .ghost-btn {
+    margin-left: auto;
+    padding: 5px 10px;
+    font-size: 11px;
+    background: rgba(255,255,255,0.12);
+    box-shadow: none;
+    border-radius: 999px;
+  }
+  .ghost-btn:active { transform: none; box-shadow: none; }
+
+  .compact-cards-area { padding: 10px 12px; }
+  .cards-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .cards-line:last-child { margin-bottom: 0; }
+  .cards-line-label { font-size: 11px; color: rgba(255,255,255,0.72); flex: 0 0 auto; }
+  .cards-line .cards { flex: 1 1 auto; min-height: 0; gap: 6px; }
+  .cards-line .chips-inline { flex: 0 0 auto; padding: 6px 10px; }
+
+  .meta-actions { margin-top: 8px; }
+  .meta-actions button { padding: 9px 12px; font-size: 12px; }
 
   .opponents-strip {
     display: flex;
@@ -280,6 +303,23 @@
       radial-gradient(circle at 88% 82%, rgba(255,143,216,0.18), transparent 30%);
     pointer-events: none;
   }
+
+  /*
+    期ごとにカードの色を変えて、手札・場札の同期判定を一目で分かりやすくする(#4)。
+    border/背景を期別に変え、.gen バッジの色も揃える。
+  */
+  .card.gen-1 { background: linear-gradient(160deg, #ffe1ec, #ffc2d9); border-color: #ff6fa5; }
+  .card.gen-1 .gen { background: #ff4d8b; }
+  .card.gen-2 { background: linear-gradient(160deg, #e1f0ff, #c2e1ff); border-color: #4da3ff; }
+  .card.gen-2 .gen { background: #2e86ff; }
+  .card.gen-3 { background: linear-gradient(160deg, #e2ffe8, #c3ffd2); border-color: #3ed17a; }
+  .card.gen-3 .gen { background: #1fae5c; }
+  .card.gen-4 { background: linear-gradient(160deg, #fff6d8, #ffe9a8); border-color: #e0ad24; }
+  .card.gen-4 .gen { background: #c98a0c; }
+  .card.gen-5 { background: linear-gradient(160deg, #ece1ff, #d6c2ff); border-color: #9a5fe0; }
+  .card.gen-5 .gen { background: #7a36c9; }
+  .card.gen-6 { background: linear-gradient(160deg, #ffe1d6, #ffc4a8); border-color: #ef7a3d; }
+  .card.gen-6 .gen { background: #d65f1d; }
 
   .card.hidden { background: linear-gradient(135deg, #7e3bdd, #ff91d9); color: white; }
   .card.hidden > * { display: none; }
@@ -488,32 +528,36 @@
     各エリアの余白・文字サイズ・カードサイズを縮小して縦の高さを節約する。
   */
   @media (max-width: 480px) {
-    #gameScreen.screen.active { padding: 8px; }
+    #gameScreen.screen.active { padding: 6px; }
     #gameScreen .table { width: 100%; }
-    #gameScreen .area { padding: 8px; margin-bottom: 8px; border-radius: 16px; }
-    #gameScreen .area-title { margin-bottom: 4px; font-size: 11px; }
-    #gameScreen .opponents-strip { margin-bottom: 8px; }
-    #gameScreen .hand-panel { padding: 8px 10px; margin-bottom: 8px; }
-    #gameScreen .hand-panel-title { margin-bottom: 2px; font-size: 10px; }
-    #gameScreen .hand-panel-name { font-size: 17px; margin-bottom: 4px; }
-    #gameScreen .live-prob-panel { padding: 6px 8px; margin-bottom: 8px; font-size: 11px; line-height: 1.5; }
-    #gameScreen .message { min-height: 0; padding: 8px; font-size: 12px; line-height: 1.45; }
-    #gameScreen #onlineTimerNotice { margin: 4px 0; font-size: 10px; }
-    #gameScreen .amount { padding: 6px 8px; margin-top: 8px; gap: 6px; }
-    #gameScreen .actions { margin-top: 8px; gap: 6px; }
-    #gameScreen .actions button { padding: 8px 4px; font-size: 11px; min-width: 0; flex: 1 1 48%; }
-    #gameScreen .card { width: 44px; height: 60px; padding: 3px; border-radius: 9px; }
-    #gameScreen .name { font-size: 7px; margin-top: 14px; line-height: 1.1; }
-    #gameScreen .gen { font-size: 6px; padding: 1px 4px; top: 3px; right: 3px; }
+    #gameScreen .area { padding: 6px 8px; margin-bottom: 6px; border-radius: 14px; }
+    #gameScreen .area-title { margin-bottom: 3px; font-size: 11px; }
+    #gameScreen .opponents-strip { margin-bottom: 6px; }
+    #gameScreen .cards-line { margin-bottom: 3px; gap: 5px; }
+    #gameScreen .cards-line-label { font-size: 9px; }
+    #gameScreen .hand-status-row { padding: 6px 8px; margin-bottom: 6px; gap: 5px; }
+    #gameScreen .hand-panel-title { font-size: 9px; }
+    #gameScreen .hand-panel-name { font-size: 14px; }
+    #gameScreen .ghost-btn { padding: 4px 8px; font-size: 9px; }
+    #gameScreen .live-prob-panel { padding: 6px 8px; margin-bottom: 6px; font-size: 10px; line-height: 1.4; }
+    #gameScreen .message { min-height: 0; padding: 6px 8px; font-size: 11px; line-height: 1.35; }
+    #gameScreen #onlineTimerNotice { margin: 3px 0; font-size: 9px; }
+    #gameScreen .amount { padding: 5px 8px; margin-top: 6px; gap: 6px; }
+    #gameScreen .actions { margin-top: 6px; gap: 5px; }
+    #gameScreen .actions button { padding: 7px 4px; font-size: 11px; min-width: 0; flex: 1 1 23%; }
+    #gameScreen .meta-actions button { padding: 5px 4px; font-size: 9px; flex: 1 1 23%; }
+    #gameScreen .card { width: 40px; height: 54px; padding: 2px; border-radius: 8px; }
+    #gameScreen .name { font-size: 6px; margin-top: 12px; line-height: 1.05; }
+    #gameScreen .gen { font-size: 5px; padding: 1px 3px; top: 2px; right: 2px; }
     #gameScreen .meta { display: none; }
-    #gameScreen .flower { font-size: 10px; bottom: 2px; right: 4px; }
-    #gameScreen .opponent-chip { min-width: 70px; padding: 5px 6px; }
-    #gameScreen .opponent-name { font-size: 10px; }
-    #gameScreen .opponent-chips { font-size: 9px; }
-    #gameScreen .chips-inline { padding: 6px 8px; }
-    #gameScreen .chips-inline span { font-size: 9px; }
-    #gameScreen .chips-inline b { font-size: 14px; }
-    #gameScreen .badge { font-size: 10px; padding: 3px 7px; }
+    #gameScreen .flower { font-size: 8px; bottom: 1px; right: 3px; }
+    #gameScreen .opponent-chip { min-width: 62px; padding: 4px 5px; }
+    #gameScreen .opponent-name { font-size: 9px; }
+    #gameScreen .opponent-chips { font-size: 8px; }
+    #gameScreen .chips-inline { padding: 4px 6px; }
+    #gameScreen .chips-inline span { font-size: 8px; }
+    #gameScreen .chips-inline b { font-size: 12px; }
+    #gameScreen .badge { font-size: 9px; padding: 2px 6px; }
   }
 </style>
 </head>
@@ -734,59 +778,56 @@
 
       <div id="opponentsStrip" class="opponents-strip"></div>
 
-      <div class="area">
-        <div class="area-title">
-          <span>コミュニティカード</span>
+      <div class="area compact-cards-area">
+        <div class="cards-line">
+          <span class="cards-line-label">場札</span>
           <span id="phaseLabel" class="badge">待機中</span>
-        </div>
-        <div class="cards-row">
           <div id="communityCards" class="cards"></div>
           <div class="chips-inline"><span>ポット</span><b id="potLabel">0</b></div>
         </div>
-      </div>
-
-      <div class="area">
-        <div class="area-title">
-          <span>あなたの手札</span>
+        <div class="cards-line">
+          <span class="cards-line-label">手札</span>
           <span id="yourChipsBadge" class="badge">0pt</span>
+          <div id="yourCards" class="cards"></div>
         </div>
-        <div id="yourCards" class="cards"></div>
       </div>
 
-      <div class="area">
-        <div class="hand-panel">
-          <div class="hand-panel-title">あなたの役</div>
-          <div class="hand-panel-name" id="handRank">-</div>
-          <div class="hand-gauge" id="handGauge"></div>
-        </div>
+      <div class="area hand-status-row">
+        <span class="hand-panel-title">あなたの役：</span>
+        <span class="hand-panel-name" id="handRank">-</span>
+        <div class="hand-gauge" id="handGauge"></div>
+        <button id="toggleLiveProbBtn" type="button" class="ghost-btn">役の確率▾</button>
+      </div>
 
-        <div class="live-prob-panel" id="liveProbPanel" style="display:none;">
-          <div class="title">今後完成しうる役の確率(現在の手札・場札から計算)</div>
-          <div id="liveProbList"></div>
-        </div>
+      <div class="live-prob-panel" id="liveProbPanel" style="display:none;">
+        <div class="title">今後完成しうる役の確率(現在の手札・場札から計算)</div>
+        <div id="liveProbList"></div>
+      </div>
 
-        <div id="message" class="message">準備中です。</div>
+      <div id="message" class="message">準備中です。</div>
 
-        <p class="small" id="onlineTimerNotice" style="display:none; color:var(--gold);">
-          ※オンライン対戦では、あなたの番から約25秒操作がないと自動的にフォールドされます。
-        </p>
+      <p class="small" id="onlineTimerNotice" style="display:none; color:var(--gold);">
+        ※オンライン対戦では、あなたの番から約25秒操作がないと自動的にフォールドされます。
+      </p>
 
-        <div class="amount">
-          <span>額</span>
-          <input id="betAmount" type="range" min="10" max="300" step="10" value="50" />
-          <b id="betLabel">50</b>
-        </div>
+      <div class="amount">
+        <span>額</span>
+        <input id="betAmount" type="range" min="10" max="300" step="10" value="50" />
+        <b id="betLabel">50</b>
+      </div>
 
-        <div class="actions">
-          <button id="checkBtn" class="success">チェック / コール</button>
-          <button id="betBtn">ベット</button>
-          <button id="raiseBtn" class="blue">レイズ</button>
-          <button id="foldBtn" class="danger">フォールド</button>
-          <button id="pauseBtn" class="secondary">一時停止</button>
-          <button id="restartBtn" class="secondary">リスタート</button>
-          <button id="cashOutBtn" class="success" style="display:none;">やめて持ち点に反映する</button>
-          <button id="leaveGameBtn" class="secondary" style="display:none;">ロビーに戻る</button>
-        </div>
+      <div class="actions">
+        <button id="checkBtn" class="success">チェック / コール</button>
+        <button id="betBtn">ベット</button>
+        <button id="raiseBtn" class="blue">レイズ</button>
+        <button id="foldBtn" class="danger">フォールド</button>
+      </div>
+
+      <div class="actions meta-actions">
+        <button id="pauseBtn" class="secondary">一時停止</button>
+        <button id="restartBtn" class="secondary">リスタート</button>
+        <button id="cashOutBtn" class="success" style="display:none;">やめて持ち点に反映する</button>
+        <button id="leaveGameBtn" class="secondary" style="display:none;">ロビーに戻る</button>
       </div>
     </div>
   </section>
@@ -895,6 +936,7 @@ const dom = {
   handGauge: $("handGauge"),
   liveProbPanel: $("liveProbPanel"),
   liveProbList: $("liveProbList"),
+  toggleLiveProbBtn: $("toggleLiveProbBtn"),
   cutinLayer: $("cutinLayer"),
   message: $("message"),
   betAmount: $("betAmount"),
@@ -1281,6 +1323,11 @@ function bindEvents() {
   dom.resumeBtn.addEventListener("click", togglePause);
   dom.restartBtn.addEventListener("click", () => { playSound(280, "square", 0.08); startCpuGame(); });
   dom.cashOutBtn.addEventListener("click", leaveCpuGame);
+  dom.toggleLiveProbBtn.addEventListener("click", () => {
+    liveProbExpanded = !liveProbExpanded;
+    dom.toggleLiveProbBtn.textContent = liveProbExpanded ? "役の確率▴" : "役の確率▾";
+    applyLiveProbVisibility();
+  });
   dom.leaveGameBtn.addEventListener("click", () => {
     sendWs({ type: "leaveRoom" });
     closeWs();
@@ -1709,31 +1756,30 @@ function renderGenericTable(vm) {
 }
 
 /* 現在のターン以降に完成しうる役の確率(#2) */
+let liveProbExpanded = false;
+let lastLiveProbCandidates = [];
+
 function renderLiveProbabilities(vm) {
-  if (!vm.yourHoleCards || !vm.yourHoleCards.length || !vm.deckPool || !vm.handDefs || !vm.handDefs.length) {
-    dom.liveProbPanel.style.display = "none";
-    return;
+  lastLiveProbCandidates = [];
+
+  if (vm.yourHoleCards && vm.yourHoleCards.length && vm.deckPool && vm.handDefs && vm.handDefs.length && vm.handPhase === "betting") {
+    const live = SakuraHandEngine.calcLiveHandProbabilities(vm.yourHoleCards, vm.communityCards, vm.deckPool, vm.handDefs);
+    lastLiveProbCandidates = live
+      .filter(h => h.liveProbability > 0 && h.liveProbability < 0.999)
+      .sort((a, b) => a.liveProbability - b.liveProbability)
+      .slice(0, 4);
   }
 
-  if (vm.handPhase !== "betting") {
-    dom.liveProbPanel.style.display = "none";
-    return;
-  }
+  dom.toggleLiveProbBtn.style.display = lastLiveProbCandidates.length ? "inline-block" : "none";
+  applyLiveProbVisibility();
+}
 
-  const live = SakuraHandEngine.calcLiveHandProbabilities(vm.yourHoleCards, vm.communityCards, vm.deckPool, vm.handDefs);
+function applyLiveProbVisibility() {
+  const show = liveProbExpanded && lastLiveProbCandidates.length > 0;
+  dom.liveProbPanel.style.display = show ? "block" : "none";
+  if (!show) return;
 
-  const candidates = live
-    .filter(h => h.liveProbability > 0 && h.liveProbability < 0.999)
-    .sort((a, b) => a.liveProbability - b.liveProbability)
-    .slice(0, 4);
-
-  if (candidates.length === 0) {
-    dom.liveProbPanel.style.display = "none";
-    return;
-  }
-
-  dom.liveProbPanel.style.display = "block";
-  dom.liveProbList.innerHTML = candidates
+  dom.liveProbList.innerHTML = lastLiveProbCandidates
     .map(h => `<div class="live-prob-row"><span>${escapeHTML(h.label)}</span><b>${(h.liveProbability * 100).toFixed(1)}%</b></div>`)
     .join("");
 }
@@ -1781,7 +1827,7 @@ function cardHTML(card, reveal) {
     return `<div class="card hidden"></div>`;
   }
   return `
-    <div class="card">
+    <div class="card gen-${escapeHTML(card.gen)}">
       <div class="gen">${escapeHTML(card.gen)}期</div>
       <div class="name">${escapeHTML(card.name)}</div>
       <div class="meta">G:${escapeHTML(card.group)}</div>
@@ -1794,7 +1840,7 @@ function renderCards(container, cards, reveal) {
   container.innerHTML = "";
   for (const card of (cards || [])) {
     const div = document.createElement("div");
-    div.className = reveal ? "card" : "card hidden";
+    div.className = (reveal ? "card" : "card hidden") + (reveal ? ` gen-${card.gen}` : "");
     div.innerHTML = `
       <div class="gen">${escapeHTML(card.gen)}期</div>
       <div class="name">${escapeHTML(card.name)}</div>

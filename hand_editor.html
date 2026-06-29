@@ -352,7 +352,7 @@ async function init() {
 /*
   期の昇順→名前の昇順でグループ化したメンバー選択グリッドを描画する共通関数。
 */
-function renderGroupedMemberGrid(container, members, isSelected, onClick) {
+function renderGroupedMemberGrid(container, members, isSelected, onClick, extraLabel) {
   container.innerHTML = "";
   const sorted = SakuraHandEngine.sortMembers(members);
   const gens = [...new Set(sorted.map(m => m.gen))].sort((a, b) => a - b);
@@ -372,8 +372,9 @@ function renderGroupedMemberGrid(container, members, isSelected, onClick) {
     sorted.filter(m => m.gen === gen).forEach(member => {
       const chip = document.createElement("div");
       const selected = isSelected(member);
+      const label = extraLabel ? extraLabel(member) : "";
       chip.className = "member-chip" + (selected ? " selected" : "");
-      chip.innerHTML = `<input type="checkbox" ${selected ? "checked" : ""} /><span>${escapeHTML(member.name)}</span>`;
+      chip.innerHTML = `<input type="checkbox" ${selected ? "checked" : ""} /><span>${escapeHTML(member.name)}${label ? escapeHTML(label) : ""}</span>`;
       chip.addEventListener("click", () => onClick(member));
       row.appendChild(chip);
     });
@@ -383,6 +384,26 @@ function renderGroupedMemberGrid(container, members, isSelected, onClick) {
   }
 }
 
+function countOf(name) {
+  return selectedNames.filter(n => n === name).length;
+}
+
+function toggleMember(name) {
+  const current = countOf(name);
+  const totalOthers = selectedNames.length - current;
+  const maxForThis = Math.min(SakuraHandEngine.COPIES_PER_MEMBER, selectedSize - totalOthers);
+
+  let next = current + 1;
+  if (next > maxForThis) next = 0;
+
+  selectedNames = selectedNames.filter(n => n !== name);
+  for (let i = 0; i < next; i++) selectedNames.push(name);
+
+  dom.editorMessage.textContent = "";
+  renderMemberGrid();
+  updatePreview();
+}
+
 function renderMemberGrid() {
   // 在籍メンバーのみ版を選んでいるときは、卒業済みメンバーをグリッドに表示しない
   const visibleMembers = selectedPoolType === "active" ? SakuraHandEngine.ACTIVE_MEMBERS : SakuraHandEngine.MEMBERS;
@@ -390,27 +411,10 @@ function renderMemberGrid() {
   renderGroupedMemberGrid(
     dom.memberGrid,
     visibleMembers,
-    member => selectedNames.includes(member.name),
-    member => toggleMember(member.name)
+    member => countOf(member.name) > 0,
+    member => toggleMember(member.name),
+    member => { const c = countOf(member.name); return c > 1 ? `(${"×"}${c})` : ""; }
   );
-}
-
-function toggleMember(name) {
-  const idx = selectedNames.indexOf(name);
-
-  if (idx >= 0) {
-    selectedNames.splice(idx, 1);
-  } else {
-    if (selectedNames.length >= selectedSize) {
-      dom.editorMessage.textContent = `選択できるのは${selectedSize}枚までです(枚数ボタンで変更できます)。`;
-      return;
-    }
-    selectedNames.push(name);
-  }
-
-  dom.editorMessage.textContent = "";
-  renderMemberGrid();
-  updatePreview();
 }
 
 function updatePreview() {

@@ -201,12 +201,29 @@
   .hand-gauge-seg { flex: 1; min-width: 4px; height: 9px; border-radius: 999px; background: rgba(255,255,255,0.16); transition: background 0.2s ease; }
   .hand-gauge-seg.filled { background: linear-gradient(135deg, var(--main), var(--gold)); box-shadow: 0 0 8px rgba(255,216,107,0.6); }
 
-  .seats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
-    margin-bottom: 14px;
+  .opponents-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    margin-bottom: 12px;
+    padding-bottom: 2px;
   }
+
+  .opponent-chip {
+    flex: 0 0 auto;
+    min-width: 96px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.26);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .opponent-chip.turn { border-color: var(--gold); box-shadow: 0 0 14px rgba(255,216,107,0.45); }
+  .opponent-chip.folded { opacity: 0.45; }
+  .opponent-name { font-size: 12px; font-weight: 900; white-space: nowrap; }
+  .opponent-chips { font-size: 11px; color: var(--gold); margin-top: 2px; white-space: nowrap; }
+  .opponent-cards { display: flex; gap: 4px; margin-top: 6px; }
 
   .seat-card {
     padding: 12px;
@@ -446,7 +463,7 @@
     .cards-row .cards { flex: 1 1 100%; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
     .chips-inline { flex: 1 1 auto; padding: 10px 12px; }
     .chips-inline b { font-size: 18px; }
-    .seats-grid { grid-template-columns: 1fr; }
+    .opponent-chip { min-width: 84px; padding: 6px 8px; }
     .card { width: 64px; height: 88px; padding: 6px; border-radius: 12px; }
     .name { font-size: 10px; margin-top: 20px; }
     .gen { font-size: 9px; padding: 2px 5px; }
@@ -463,6 +480,40 @@
     .actions button { flex: 1 1 100%; }
     .card { width: 56px; height: 78px; }
     .member-grid { max-height: 260px; }
+  }
+
+  /*
+    スマホでスクロールせずに対戦できるよう、ゲーム画面を強めに圧縮する。
+    対戦相手の手札は表示しない方針(opponent-chipに絵札を出さない)とあわせて、
+    各エリアの余白・文字サイズ・カードサイズを縮小して縦の高さを節約する。
+  */
+  @media (max-width: 480px) {
+    #gameScreen.screen.active { padding: 8px; }
+    #gameScreen .table { width: 100%; }
+    #gameScreen .area { padding: 8px; margin-bottom: 8px; border-radius: 16px; }
+    #gameScreen .area-title { margin-bottom: 4px; font-size: 11px; }
+    #gameScreen .opponents-strip { margin-bottom: 8px; }
+    #gameScreen .hand-panel { padding: 8px 10px; margin-bottom: 8px; }
+    #gameScreen .hand-panel-title { margin-bottom: 2px; font-size: 10px; }
+    #gameScreen .hand-panel-name { font-size: 17px; margin-bottom: 4px; }
+    #gameScreen .live-prob-panel { padding: 6px 8px; margin-bottom: 8px; font-size: 11px; line-height: 1.5; }
+    #gameScreen .message { min-height: 0; padding: 8px; font-size: 12px; line-height: 1.45; }
+    #gameScreen #onlineTimerNotice { margin: 4px 0; font-size: 10px; }
+    #gameScreen .amount { padding: 6px 8px; margin-top: 8px; gap: 6px; }
+    #gameScreen .actions { margin-top: 8px; gap: 6px; }
+    #gameScreen .actions button { padding: 8px 4px; font-size: 11px; min-width: 0; flex: 1 1 48%; }
+    #gameScreen .card { width: 44px; height: 60px; padding: 3px; border-radius: 9px; }
+    #gameScreen .name { font-size: 7px; margin-top: 14px; line-height: 1.1; }
+    #gameScreen .gen { font-size: 6px; padding: 1px 4px; top: 3px; right: 3px; }
+    #gameScreen .meta { display: none; }
+    #gameScreen .flower { font-size: 10px; bottom: 2px; right: 4px; }
+    #gameScreen .opponent-chip { min-width: 70px; padding: 5px 6px; }
+    #gameScreen .opponent-name { font-size: 10px; }
+    #gameScreen .opponent-chips { font-size: 9px; }
+    #gameScreen .chips-inline { padding: 6px 8px; }
+    #gameScreen .chips-inline span { font-size: 9px; }
+    #gameScreen .chips-inline b { font-size: 14px; }
+    #gameScreen .badge { font-size: 10px; padding: 3px 7px; }
   }
 </style>
 </head>
@@ -681,6 +732,8 @@
         </div>
       </div>
 
+      <div id="opponentsStrip" class="opponents-strip"></div>
+
       <div class="area">
         <div class="area-title">
           <span>コミュニティカード</span>
@@ -692,7 +745,13 @@
         </div>
       </div>
 
-      <div id="seatsGrid" class="seats-grid"></div>
+      <div class="area">
+        <div class="area-title">
+          <span>あなたの手札</span>
+          <span id="yourChipsBadge" class="badge">0pt</span>
+        </div>
+        <div id="yourCards" class="cards"></div>
+      </div>
 
       <div class="area">
         <div class="hand-panel">
@@ -829,7 +888,9 @@ const dom = {
   phaseLabel: $("phaseLabel"),
   communityCards: $("communityCards"),
   potLabel: $("potLabel"),
-  seatsGrid: $("seatsGrid"),
+  opponentsStrip: $("opponentsStrip"),
+  yourCards: $("yourCards"),
+  yourChipsBadge: $("yourChipsBadge"),
   handRank: $("handRank"),
   handGauge: $("handGauge"),
   liveProbPanel: $("liveProbPanel"),
@@ -1588,6 +1649,16 @@ function buildViewModelFromOnlineState(msg) {
 
 let lastViewModel = null;
 
+function seatTagsHTML(seat) {
+  const tags = [];
+  if (seat.isTurn) tags.push('<span class="seat-tag turn">手番</span>');
+  if (seat.folded) tags.push('<span class="seat-tag fold">フォールド</span>');
+  if (seat.allIn) tags.push('<span class="seat-tag allin">オールイン</span>');
+  if (seat.sittingOut) tags.push('<span class="seat-tag fold">脱落</span>');
+  if (!seat.connected) tags.push('<span class="seat-tag disconnected">切断中</span>');
+  return tags.join("");
+}
+
 function renderGenericTable(vm) {
   lastViewModel = vm;
 
@@ -1595,33 +1666,36 @@ function renderGenericTable(vm) {
   dom.potLabel.textContent = vm.pot;
   renderCards(dom.communityCards, vm.communityCards, true);
 
-  dom.seatsGrid.innerHTML = "";
-  vm.seats.forEach(seat => {
-    const card = document.createElement("div");
-    card.className = "seat-card" + (seat.isTurn ? " turn" : "") + (seat.folded ? " folded" : "") + (seat.isYou ? " you" : "");
+  /*
+    対戦相手の手札は見せる必要がない情報なので、カードの絵は表示せず
+    名前・持ち点・状態だけをコンパクトな帯で表示する(スマホで縦スクロール
+    せずに収まるようにするため)。状態(枚数等)は内部的にvm.seatsへ保持済み。
+  */
+  dom.opponentsStrip.innerHTML = "";
+  const you = vm.seats.find(seat => seat.isYou);
 
-    const tags = [];
-    if (seat.isTurn) tags.push('<span class="seat-tag turn">手番</span>');
-    if (seat.folded) tags.push('<span class="seat-tag fold">フォールド</span>');
-    if (seat.allIn) tags.push('<span class="seat-tag allin">オールイン</span>');
-    if (seat.sittingOut) tags.push('<span class="seat-tag fold">脱落</span>');
-    if (!seat.connected) tags.push('<span class="seat-tag disconnected">切断中</span>');
+  vm.seats.filter(seat => !seat.isYou).forEach(seat => {
+    const chip = document.createElement("div");
+    chip.className = "opponent-chip" + (seat.isTurn ? " turn" : "") + (seat.folded ? " folded" : "");
 
-    const cardsHtml = seat.cards && seat.cards.length
-      ? seat.cards.map(c => cardHTML(c, true)).join("")
-      : (seat.sittingOut ? "" : cardHTML(null, false) + cardHTML(null, false));
+    const revealedCardsHtml = (seat.cards && seat.cards.length)
+      ? `<div class="opponent-cards">${seat.cards.map(c => cardHTML(c, true)).join("")}</div>`
+      : "";
 
-    card.innerHTML = `
-      <div class="seat-head">
-        <span class="seat-name">${escapeHTML(seat.name)}${seat.isYou ? "(あなた)" : ""}</span>
-        <span class="seat-chips">${seat.chips}pt${seat.bet > 0 ? ` (ベット:${seat.bet})` : ""}</span>
-      </div>
-      <div class="seat-cards">${cardsHtml}</div>
-      <div class="seat-tags">${tags.join("")}</div>
+    chip.innerHTML = `
+      <div class="opponent-name">${escapeHTML(seat.name)}</div>
+      <div class="opponent-chips">${seat.chips}pt${seat.bet > 0 ? ` (B:${seat.bet})` : ""}</div>
+      <div class="seat-tags">${seatTagsHTML(seat)}</div>
+      ${revealedCardsHtml}
     `;
 
-    dom.seatsGrid.appendChild(card);
+    dom.opponentsStrip.appendChild(chip);
   });
+
+  if (you) {
+    dom.yourChipsBadge.textContent = `${you.chips}pt${you.bet > 0 ? ` (ベット:${you.bet})` : ""}`;
+    renderCards(dom.yourCards, you.cards, true);
+  }
 
   dom.handRank.textContent = vm.yourHandName || "-";
   renderHandGauge(dom.handGauge, vm.yourHandRank, vm.handNamesCount);

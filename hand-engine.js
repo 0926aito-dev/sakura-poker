@@ -93,19 +93,30 @@
     return result;
   }
 
+  /*
+    同じメンバーは(物理カードが4枚あるため)最大4枚まで重複指定できます。
+    例: ["大園玲","大園玲"] は「大園玲を2枚以上」を意味します。
+  */
   function isValidCustomNames(names) {
-    return (
-      Array.isArray(names) &&
-      names.length >= MIN_CUSTOM_SIZE &&
-      names.length <= MAX_CUSTOM_SIZE &&
-      new Set(names).size === names.length &&
-      names.every(n => MEMBERS.some(m => m.name === n))
-    );
+    if (!Array.isArray(names) || names.length < MIN_CUSTOM_SIZE || names.length > MAX_CUSTOM_SIZE) {
+      return false;
+    }
+
+    const counts = {};
+    for (const n of names) {
+      counts[n] = (counts[n] || 0) + 1;
+      if (counts[n] > COPIES_PER_MEMBER) return false;
+    }
+
+    return names.every(n => MEMBERS.some(m => m.name === n));
   }
 
   function matchesCustomHand(cards, names) {
-    const cardNames = cards.map(c => c.name);
-    return names.every(n => cardNames.includes(n));
+    const required = {};
+    for (const n of names) required[n] = (required[n] || 0) + 1;
+
+    const available = countBy(cards, "name");
+    return Object.keys(required).every(n => (available[n] || 0) >= required[n]);
   }
 
   /*
@@ -193,13 +204,13 @@
   }
 
   /*
-    指名された名前(m人)が全員5枚の中に少なくとも1枚含まれる確率。
-    各人COPIES_PER_MEMBER枚のコピーがあるため、単純な comb(total-m,5-m) ではなく
-    包除原理(inclusion-exclusion)で正確に計算します。
+    指名された名前が、必要な枚数(同じ名前が複数回指定されていれば「その人を○枚以上」)
+    だけ5枚の中に含まれる確率。各人の残り枚数(指名以外の枠)を「その他」として
+    まとめ、各指名者の引いた枚数(必要数以上)と「その他」の枚数の組み合わせを
+    すべて列挙して正確に計算します(同期役の確率計算と同じ列挙方式)。
   */
   function exactCustomProbability(handDef, pool) {
     pool = pool || MEMBERS;
-    const m = handDef.names.length;
     const validInPool =
       isValidCustomNames(handDef.names) &&
       handDef.names.every(n => pool.some(p => p.name === n));
@@ -209,11 +220,30 @@
     const totalCombos = comb(total, 5);
     if (totalCombos === 0) return 0;
 
+    const requiredCount = {};
+    for (const n of handDef.names) requiredCount[n] = (requiredCount[n] || 0) + 1;
+    const distinctNames = Object.keys(requiredCount);
+    const othersCapacity = total - COPIES_PER_MEMBER * distinctNames.length;
+
     let favorable = 0;
-    for (let k = 0; k <= m; k++) {
-      const sign = k % 2 === 0 ? 1 : -1;
-      favorable += sign * comb(m, k) * comb(total - COPIES_PER_MEMBER * k, 5);
+
+    function enumerate(idx, remaining, ways) {
+      if (idx === distinctNames.length) {
+        if (remaining >= 0 && remaining <= othersCapacity) {
+          favorable += ways * comb(othersCapacity, remaining);
+        }
+        return;
+      }
+
+      const req = requiredCount[distinctNames[idx]];
+      for (let c = req; c <= COPIES_PER_MEMBER; c++) {
+        const nextRemaining = remaining - c;
+        if (nextRemaining < 0) break;
+        enumerate(idx + 1, nextRemaining, ways * comb(COPIES_PER_MEMBER, c));
+      }
     }
+
+    enumerate(0, 5, 1);
 
     return favorable / totalCombos;
   }
@@ -406,20 +436,46 @@
     }
 
     function liveCustomProbability(handDef) {
-      const missing = handDef.names.filter(n => !known.some(c => c.name === n));
-      if (missing.length === 0) return 1;
-      if (!missing.every(n => remainingByName[n] !== undefined)) return 0;
+      const requiredCount = {};
+      for (const n of handDef.names) requiredCount[n] = (requiredCount[n] || 0) + 1;
+
+      // すでに必要枚数を満たしている人は除外し、足りない人だけ残り枚数から引けるか判定する
+      const stillNeeded = {};
+      for (const n of Object.keys(requiredCount)) {
+        const need = requiredCount[n] - (knownCountByName[n] || 0);
+        if (need > 0) stillNeeded[n] = need;
+      }
+
+      const distinctNames = Object.keys(stillNeeded);
+      if (distinctNames.length === 0) return 1;
+      if (!distinctNames.every(n => remainingByName[n] !== undefined)) return 0;
       if (drawsRemaining === 0) return 0;
 
-      const m = missing.length;
       const totalCombos = comb(remainingPoolSize, drawsRemaining);
       if (totalCombos === 0) return 0;
 
       let favorable = 0;
-      for (let k = 0; k <= m; k++) {
-        const sign = k % 2 === 0 ? 1 : -1;
-        favorable += sign * comb(m, k) * comb(remainingPoolSize - COPIES_PER_MEMBER * k, drawsRemaining);
+
+      function enumerate(idx, remaining, ways) {
+        if (idx === distinctNames.length) {
+          const othersCapacity = remainingPoolSize - distinctNames.reduce((s, n) => s + remainingByName[n], 0);
+          if (remaining >= 0 && remaining <= othersCapacity) {
+            favorable += ways * comb(othersCapacity, remaining);
+          }
+          return;
+        }
+
+        const name = distinctNames[idx];
+        const need = stillNeeded[name];
+        const cap = remainingByName[name];
+        for (let c = need; c <= cap; c++) {
+          const nextRemaining = remaining - c;
+          if (nextRemaining < 0) break;
+          enumerate(idx + 1, nextRemaining, ways * comb(cap, c));
+        }
       }
+
+      enumerate(0, drawsRemaining, 1);
 
       return favorable / totalCombos;
     }

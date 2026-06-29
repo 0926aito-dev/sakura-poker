@@ -67,6 +67,7 @@ function saveDb() {
 }
 
 loadDb();
+ensureTestAccount();
 
 function hashPassword(password, salt) {
   return crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
@@ -83,6 +84,78 @@ function createUser(username, password) {
     rankPoints: STARTING_RANK_POINTS,
     stats: { cpuGamesPlayed: 0, cpuWins: 0, onlineWins: 0, onlineLosses: 0 }
   };
+  saveDb();
+}
+
+/*
+  開発・動作確認用のテストアカウント。サーバー起動のたびに
+  ユーザー名:Test / パスワード:Test が存在することと、各種スロット
+  (指名・属性ワイルドカード・無条件ワイルド枠)を組み合わせたサンプルの
+  オリジナル役(2〜5枚それぞれ1つ)が登録されていることを保証する。
+  既存のテスト役は同じidで毎回上書きするため、内容は常に最新になる。
+*/
+function ensureTestAccount() {
+  const username = "Test";
+  const password = "Test";
+
+  if (!db.users[username]) {
+    createUser(username, password);
+  }
+  ensureUserDefaults(username);
+
+  const activePool = SakuraHandEngine.ACTIVE_MEMBERS;
+  if (activePool.length === 0) return;
+
+  const oshimen = activePool[0].name;
+  const gen = activePool[0].gen;
+  const groupMember = activePool.find(m => m.group && m.group !== activePool[0].group) || activePool[0];
+  const group = groupMember.group;
+
+  const testHands = [
+    {
+      id: "test_hand_2",
+      label: "テスト：推し+ワイルド(2枚)",
+      slots: [{ type: "name", value: oshimen }, { type: "wild" }],
+      poolType: "active"
+    },
+    {
+      id: "test_hand_3",
+      label: "テスト：推し+同期+ワイルド(3枚)",
+      slots: [{ type: "name", value: oshimen }, { type: "gen", value: gen }, { type: "wild" }],
+      poolType: "active"
+    },
+    {
+      id: "test_hand_4",
+      label: "テスト：推し2枚+ワイルド2枚(4枚)",
+      slots: [
+        { type: "name", value: oshimen },
+        { type: "name", value: oshimen },
+        { type: "wild" },
+        { type: "wild" }
+      ],
+      poolType: "active"
+    },
+    {
+      id: "test_hand_5",
+      label: "テスト：推し+グループ×2+ワイルド×2(5枚)",
+      slots: [
+        { type: "name", value: oshimen },
+        { type: "group", value: group },
+        { type: "group", value: group },
+        { type: "wild" },
+        { type: "wild" }
+      ],
+      poolType: "active"
+    }
+  ];
+
+  const validHands = testHands.filter(h => SakuraHandEngine.isValidSlotsForPool(h.slots, h.poolType));
+  const testIds = new Set(validHands.map(h => h.id));
+
+  db.users[username].hands = (db.users[username].hands || []).filter(h => !testIds.has(h.id));
+  db.users[username].hands.push(...validHands);
+  db.users[username].favoriteMember = db.users[username].favoriteMember || oshimen;
+
   saveDb();
 }
 

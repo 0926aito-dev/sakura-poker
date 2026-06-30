@@ -502,7 +502,7 @@ function buildStateFor(room, viewerSeat) {
       connected: !!room.sockets[i],
       isYou: i === viewerSeat,
       isTurn: table.turnSeat === i,
-      isDealer: table.dealerIndex === i,
+      isDealer: i === table.dealerIndex,
       cardCount: p.sittingOut ? 0 : p.holeCards.length,
       cards: showCards
     };
@@ -519,7 +519,11 @@ function buildStateFor(room, viewerSeat) {
     gameOver: !!table.gameOver,
     deckPoolName: room.deckPoolName,
     handPhase: table.handPhase,
+    featuredMember: table.featuredMember || null,
+    pendingDrawers: table.pendingDrawers || [],
+    isYourDrawTurn: table.handPhase === "drawing" && table.turnSeat === viewerSeat,
     phaseLabel:
+      table.handPhase === "drawing" ? "カード交換" :
       table.handPhase === "betting" ? PHASES[table.phaseIndex] :
       table.handPhase === "result" ? "ショーダウン" :
       table.handPhase === "gameover" ? "終了" : "待機中",
@@ -559,13 +563,18 @@ function scheduleTurnTimeout(room) {
   }
 
   const table = room.table;
-  if (!table || table.handPhase !== "betting" || table.turnSeat == null) return;
+  if (!table || (table.handPhase !== "betting" && table.handPhase !== "drawing") || table.turnSeat == null) return;
 
   const seat = table.turnSeat;
+  const phase = table.handPhase;
   room.turnTimer = setTimeout(() => {
     if (room.disposed) return;
-    if (table.turnSeat === seat && table.handPhase === "betting") {
-      table.action(seat, "fold", 0);
+    if (table.turnSeat === seat) {
+      if (table.handPhase === "drawing") {
+        table.draw(seat, null); // 時間切れ: 交換なしで自動進行
+      } else if (table.handPhase === "betting") {
+        table.action(seat, "fold", 0);
+      }
     }
   }, TURN_TIMEOUT_MS);
 }
@@ -811,6 +820,15 @@ wss.on("connection", ws => {
       if (!room || !room.table) return;
       if (room.sockets[ws.seat] !== ws) return;
       room.table.action(ws.seat, msg.action, msg.amount);
+      return;
+    }
+
+    if (msg.type === "draw") {
+      if (ws.roomId == null || ws.seat == null) return;
+      const room = rooms.get(ws.roomId);
+      if (!room || !room.table) return;
+      if (room.sockets[ws.seat] !== ws) return;
+      room.table.draw(ws.seat, msg.cardIndex);
       return;
     }
   });

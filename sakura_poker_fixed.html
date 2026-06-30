@@ -483,6 +483,26 @@
     100% { transform: translateX(130vw) skewX(-6deg); opacity: 0; }
   }
 
+  /* フィーチャーメンバーバナー */
+  .featured-banner {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
+    background: linear-gradient(90deg, rgba(255,200,50,0.12), rgba(255,140,0,0.08));
+    border: 1px solid rgba(255,200,50,0.4); border-radius: 10px;
+    padding: 6px 12px; margin-bottom: 8px;
+  }
+  .featured-label { font-size: 10px; color: var(--gold); font-weight: bold; white-space: nowrap; }
+  .featured-name  { font-size: 15px; font-weight: bold; color: #fff; }
+  .featured-hint  { font-size: 9px; color: var(--dim); }
+
+  /* カード交換フェーズ */
+  .draw-panel { padding: 10px 12px; margin-bottom: 8px; }
+  .draw-panel-title { font-size: 11px; color: var(--dim); margin-bottom: 8px; }
+  .draw-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .draw-card-btn { flex: 1; min-width: 80px; padding: 8px 6px; font-size: 13px; border-radius: 8px; }
+
+  /* フィーチャーメンバーのカードを光らせる */
+  .card.featured-card { box-shadow: 0 0 14px 4px rgba(255,200,50,0.75); border-color: rgba(255,200,50,0.9) !important; }
+
   .pause-layer { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,0.62); z-index: 99; padding: 20px; }
   .pause-layer.show { display: grid; }
 
@@ -522,43 +542,193 @@
     .member-grid { max-height: 260px; }
   }
 
-  /*
-    スマホでスクロールせずに対戦できるよう、ゲーム画面を強めに圧縮する。
-    対戦相手の手札は表示しない方針(opponent-chipに絵札を出さない)とあわせて、
-    各エリアの余白・文字サイズ・カードサイズを縮小して縦の高さを節約する。
-  */
-  @media (max-width: 480px) {
-    #gameScreen.screen.active { padding: 6px; }
-    #gameScreen .table { width: 100%; }
-    #gameScreen .area { padding: 6px 8px; margin-bottom: 6px; border-radius: 14px; }
-    #gameScreen .area-title { margin-bottom: 3px; font-size: 11px; }
-    #gameScreen .opponents-strip { margin-bottom: 6px; }
-    #gameScreen .cards-line { margin-bottom: 3px; gap: 5px; }
-    #gameScreen .cards-line-label { font-size: 9px; }
-    #gameScreen .hand-status-row { padding: 6px 8px; margin-bottom: 6px; gap: 5px; }
-    #gameScreen .hand-panel-title { font-size: 9px; }
-    #gameScreen .hand-panel-name { font-size: 14px; }
-    #gameScreen .ghost-btn { padding: 4px 8px; font-size: 9px; }
-    #gameScreen .live-prob-panel { padding: 6px 8px; margin-bottom: 6px; font-size: 10px; line-height: 1.4; }
-    #gameScreen .message { min-height: 0; padding: 6px 8px; font-size: 11px; line-height: 1.35; }
-    #gameScreen #onlineTimerNotice { margin: 3px 0; font-size: 9px; }
-    #gameScreen .amount { padding: 5px 8px; margin-top: 6px; gap: 6px; }
-    #gameScreen .actions { margin-top: 6px; gap: 5px; }
-    #gameScreen .actions button { padding: 7px 4px; font-size: 11px; min-width: 0; flex: 1 1 23%; }
-    #gameScreen .meta-actions button { padding: 5px 4px; font-size: 9px; flex: 1 1 23%; }
-    #gameScreen .card { width: 40px; height: 54px; padding: 2px; border-radius: 8px; }
-    #gameScreen .name { font-size: 6px; margin-top: 12px; line-height: 1.05; }
-    #gameScreen .gen { font-size: 5px; padding: 1px 3px; top: 2px; right: 2px; }
-    #gameScreen .meta { display: none; }
-    #gameScreen .flower { font-size: 8px; bottom: 1px; right: 3px; }
-    #gameScreen .opponent-chip { min-width: 62px; padding: 4px 5px; }
-    #gameScreen .opponent-name { font-size: 9px; }
-    #gameScreen .opponent-chips { font-size: 8px; }
-    #gameScreen .chips-inline { padding: 4px 6px; }
-    #gameScreen .chips-inline span { font-size: 8px; }
-    #gameScreen .chips-inline b { font-size: 12px; }
-    #gameScreen .badge { font-size: 9px; padding: 2px 6px; }
+  /* ===================== ゲーム画面 ポーカーテーブルレイアウト ===================== */
+  #gameScreen.screen.active {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    min-height: 100dvh;
   }
+
+  .poker-table {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 6px 8px 8px;
+    min-height: 100dvh;
+    max-width: 520px;
+    width: 100%;
+    margin: 0 auto;
+    background: radial-gradient(ellipse at 50% 25%, #3a9e54 0%, #1e6632 55%, #0f3d1a 100%);
+    overflow: hidden;
+  }
+
+  /* トップバー */
+  .g-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 5px 10px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .g-topbar-left { display: flex; align-items: baseline; gap: 3px; font-size: 11px; }
+  .g-topbar-left b { color: var(--gold); font-size: 15px; }
+  .g-gain-label { color: rgba(255,255,255,0.65); }
+  .g-topbar-right { font-size: 9px; text-align: right; }
+  .online-timer-notice { margin: 0; color: var(--gold); font-size: 9px; }
+  .phase-chip {
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.28);
+    font-size: 12px;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: 0.06em;
+  }
+
+  /* 対戦相手エリア */
+  .opponents-area {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+  }
+  .opp-panel {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 7px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.58);
+    border: 1px solid rgba(255,255,255,0.18);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .opp-panel.turn { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,216,107,0.55); }
+  .opp-panel.folded { opacity: 0.38; }
+  .opp-panel.sitting-out { opacity: 0.28; }
+  .opp-name-bar { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+  .dealer-badge {
+    width: 17px; height: 17px; border-radius: 50%;
+    background: var(--gold); color: #1a1200;
+    font-size: 9px; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .opp-name { font-size: 11px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .opp-chips-row { font-size: 10px; color: var(--gold); margin-bottom: 2px; }
+  .opp-tags { display: flex; gap: 3px; flex-wrap: wrap; }
+  .opp-tag {
+    font-size: 8px; padding: 1px 5px; border-radius: 999px;
+    background: rgba(255,255,255,0.14);
+  }
+  .opp-tag.tag-turn   { background: rgba(255,216,107,0.35); color: var(--gold); }
+  .opp-tag.tag-fold   { background: rgba(255,77,120,0.35); color: #ff9ab8; }
+  .opp-tag.tag-allin  { background: rgba(255,143,216,0.35); color: var(--sub); }
+  .opp-tag.tag-bet    { background: rgba(255,200,50,0.25); color: var(--gold); }
+  .opp-tag.tag-disconn{ background: rgba(150,150,150,0.3); }
+  .opp-cards-mini { display: flex; gap: 2px; margin-top: 3px; flex-wrap: wrap; }
+  .card-back-mini {
+    width: 18px; height: 25px; border-radius: 3px;
+    background: linear-gradient(135deg, #7e3bdd, #ff91d9);
+    border: 1px solid rgba(255,255,255,0.22);
+  }
+
+  /* テーブルセンター(場札 + ポット) */
+  .table-felt-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 6px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+  .community-cards-flex {
+    display: flex; gap: 5px; flex-wrap: wrap;
+    justify-content: center; align-items: center; min-height: 54px;
+  }
+  .pot-row { display: flex; align-items: baseline; gap: 5px; }
+  .pot-label-text { font-size: 11px; color: rgba(255,255,255,0.66); }
+  .pot-amount { font-size: 22px; color: var(--gold); font-weight: 900; }
+  .pot-unit { font-size: 11px; color: rgba(255,255,255,0.66); }
+
+  /* 役状態バー */
+  .g-hand-status {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 6px 10px; border-radius: 10px;
+    background: linear-gradient(135deg, rgba(184,108,255,0.2), rgba(255,143,216,0.14));
+    border: 1px solid rgba(255,255,255,0.24);
+    flex-shrink: 0;
+  }
+
+  /* テーブルメッセージ */
+  .table-message {
+    padding: 5px 9px; border-radius: 8px;
+    background: rgba(0,0,0,0.38);
+    font-size: 11px; line-height: 1.45;
+    color: rgba(255,255,255,0.88);
+    flex-shrink: 0;
+  }
+
+  /* カード交換パネル */
+  .g-draw-panel {
+    padding: 8px 10px; border-radius: 10px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,200,50,0.35);
+    flex-shrink: 0;
+  }
+  .g-draw-panel .draw-panel-title { font-size: 10px; color: rgba(255,255,255,0.78); margin-bottom: 6px; }
+  .g-draw-panel .draw-buttons { display: flex; gap: 5px; }
+  .g-draw-panel .draw-card-btn { flex: 1; padding: 8px 4px; font-size: 11px; }
+
+  /* プレイヤーエリア */
+  .player-area {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 12px;
+    background: rgba(0,0,0,0.55);
+    border: 2px solid rgba(100,190,255,0.38);
+    flex-shrink: 0;
+  }
+  .player-left { flex-shrink: 0; text-align: center; }
+  .player-chips-badge { font-size: 12px; font-weight: 900; color: var(--gold); white-space: nowrap; }
+  .player-hole-cards { display: flex; gap: 6px; flex: 1; justify-content: center; }
+
+  /* ベットコントロール */
+  .g-bet-slider-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 8px; margin-bottom: 5px;
+    background: rgba(255,255,255,0.08); border-radius: 8px;
+  }
+  .g-bet-label { font-size: 10px; color: rgba(255,255,255,0.68); flex-shrink: 0; }
+  .g-bet-slider-row input { flex: 1; }
+  .g-bet-slider-row b { color: var(--gold); font-size: 15px; }
+  .g-bet-unit { font-size: 10px; color: rgba(255,255,255,0.6); flex-shrink: 0; }
+  .g-action-row { margin-top: 0; gap: 5px; }
+  .g-action-row button { flex: 1; padding: 10px 4px; font-size: 12px; min-width: 0; }
+
+  /* メタアクション */
+  .meta-actions { gap: 5px; margin-top: 3px; }
+  .meta-actions button { flex: 1; padding: 7px 4px; font-size: 10px; min-width: 0; }
+
+  /* ゲーム画面カードサイズ */
+  .poker-table .card { width: 44px; height: 60px; padding: 3px; border-radius: 8px; }
+  .poker-table .name { font-size: 7px; margin-top: 14px; line-height: 1.1; }
+  .poker-table .gen { font-size: 7px; padding: 1px 4px; top: 2px; right: 2px; }
+  .poker-table .meta { display: none; }
+  .poker-table .flower { font-size: 10px; bottom: 2px; right: 3px; }
+
+  /* 相手のショーダウンカード(小さめ) */
+  .opp-cards-mini .card { width: 26px; height: 36px; padding: 1px; border-radius: 4px; }
+  .opp-cards-mini .name { font-size: 5px; margin-top: 8px; line-height: 1; }
+  .opp-cards-mini .gen { font-size: 4px; padding: 0 2px; top: 1px; right: 1px; }
+  .opp-cards-mini .flower { display: none; }
 </style>
 </head>
 
@@ -768,67 +938,99 @@
 
   <!-- ===================== ゲーム画面(共通) ===================== -->
   <section id="gameScreen" class="screen">
-    <div class="table">
-      <div class="topbar" id="cpuTopbar">
-        <div class="stat">
-          <span>持ち点への加算予定(500点を超えた分)</span>
+    <div class="poker-table">
+
+      <!-- トップバー -->
+      <div class="g-topbar">
+        <div id="cpuTopbar" class="g-topbar-left">
+          <span class="g-gain-label">獲得予定</span>
           <b id="cpuGainPreview">+0</b>
+          <span class="g-gain-label">pt</span>
+        </div>
+        <span id="phaseLabel" class="phase-chip">待機中</span>
+        <div class="g-topbar-right">
+          <p id="onlineTimerNotice" class="online-timer-notice" style="display:none">⏱25秒で自動フォールド</p>
         </div>
       </div>
 
-      <div id="opponentsStrip" class="opponents-strip"></div>
+      <!-- フィーチャーメンバーバナー -->
+      <div id="featuredBanner" class="featured-banner" style="display:none">
+        <span class="featured-label">✦ フィーチャーメンバー</span>
+        <span id="featuredMemberName" class="featured-name">-</span>
+        <span class="featured-hint">フロップに確定登場！このメンバーのオリジナル役を狙おう</span>
+      </div>
 
-      <div class="area compact-cards-area">
-        <div class="cards-line">
-          <span class="cards-line-label">場札</span>
-          <span id="phaseLabel" class="badge">待機中</span>
-          <div id="communityCards" class="cards"></div>
-          <div class="chips-inline"><span>ポット</span><b id="potLabel">0</b></div>
-        </div>
-        <div class="cards-line">
-          <span class="cards-line-label">手札</span>
-          <span id="yourChipsBadge" class="badge">0pt</span>
-          <div id="yourCards" class="cards"></div>
+      <!-- 対戦相手エリア -->
+      <div id="opponentsStrip" class="opponents-area"></div>
+
+      <!-- テーブルセンター: 場札 + ポット -->
+      <div class="table-felt-center">
+        <div id="communityCards" class="community-cards-flex"></div>
+        <div class="pot-row">
+          <span class="pot-label-text">ポット</span>
+          <b id="potLabel" class="pot-amount">0</b>
+          <span class="pot-unit">pt</span>
         </div>
       </div>
 
-      <div class="area hand-status-row">
+      <!-- 役状態バー -->
+      <div class="g-hand-status">
         <span class="hand-panel-title">あなたの役：</span>
         <span class="hand-panel-name" id="handRank">-</span>
         <div class="hand-gauge" id="handGauge"></div>
-        <button id="toggleLiveProbBtn" type="button" class="ghost-btn">役の確率▾</button>
+        <button id="toggleLiveProbBtn" type="button" class="ghost-btn">確率▾</button>
       </div>
 
-      <div class="live-prob-panel" id="liveProbPanel" style="display:none;">
+      <!-- 確率パネル -->
+      <div class="live-prob-panel" id="liveProbPanel" style="display:none">
         <div class="title">今後完成しうる役の確率(現在の手札・場札から計算)</div>
         <div id="liveProbList"></div>
       </div>
 
-      <div id="message" class="message">準備中です。</div>
+      <!-- メッセージ -->
+      <div id="message" class="table-message">準備中です。</div>
 
-      <p class="small" id="onlineTimerNotice" style="display:none; color:var(--gold);">
-        ※オンライン対戦では、あなたの番から約25秒操作がないと自動的にフォールドされます。
-      </p>
-
-      <div class="amount">
-        <span>額</span>
-        <input id="betAmount" type="range" min="10" max="300" step="10" value="50" />
-        <b id="betLabel">50</b>
+      <!-- カード交換パネル -->
+      <div id="drawPanel" class="g-draw-panel" style="display:none">
+        <div class="draw-panel-title">🔄 カード交換フェーズ：ホールカードを1枚だけ交換できます</div>
+        <div class="draw-buttons">
+          <button id="swapCard0Btn" class="draw-card-btn">1枚目を交換</button>
+          <button id="swapCard1Btn" class="draw-card-btn">2枚目を交換</button>
+          <button id="keepCardsBtn" class="draw-card-btn secondary">交換しない</button>
+        </div>
       </div>
 
-      <div class="actions">
-        <button id="checkBtn" class="success">チェック / コール</button>
-        <button id="betBtn">ベット</button>
-        <button id="raiseBtn" class="blue">レイズ</button>
-        <button id="foldBtn" class="danger">フォールド</button>
+      <!-- プレイヤーエリア(手札) -->
+      <div class="player-area">
+        <div class="player-left">
+          <div id="yourChipsBadge" class="player-chips-badge">0pt</div>
+        </div>
+        <div id="yourCards" class="player-hole-cards"></div>
       </div>
 
+      <!-- ベットコントロール -->
+      <div id="bettingControls">
+        <div class="g-bet-slider-row">
+          <span class="g-bet-label">ベット額</span>
+          <input id="betAmount" type="range" min="10" max="300" step="10" value="50" />
+          <b id="betLabel">50</b><span class="g-bet-unit">pt</span>
+        </div>
+        <div class="actions g-action-row">
+          <button id="foldBtn" class="danger">フォールド</button>
+          <button id="checkBtn" class="success">チェック / コール</button>
+          <button id="betBtn">ベット</button>
+          <button id="raiseBtn" class="blue">レイズ</button>
+        </div>
+      </div>
+
+      <!-- メタアクション -->
       <div class="actions meta-actions">
         <button id="pauseBtn" class="secondary">一時停止</button>
         <button id="restartBtn" class="secondary">リスタート</button>
-        <button id="cashOutBtn" class="success" style="display:none;">やめて持ち点に反映する</button>
-        <button id="leaveGameBtn" class="secondary" style="display:none;">ロビーに戻る</button>
+        <button id="cashOutBtn" class="success" style="display:none">持ち点に反映</button>
+        <button id="leaveGameBtn" class="secondary" style="display:none">ロビーへ</button>
       </div>
+
     </div>
   </section>
 
@@ -921,6 +1123,14 @@ const dom = {
   leaveRoomBtn: $("leaveRoomBtn"),
   lobbyMessage: $("lobbyMessage"),
   backToMenuFromLobbyBtn: $("backToMenuFromLobbyBtn"),
+
+  featuredBanner: $("featuredBanner"),
+  featuredMemberName: $("featuredMemberName"),
+  drawPanel: $("drawPanel"),
+  swapCard0Btn: $("swapCard0Btn"),
+  swapCard1Btn: $("swapCard1Btn"),
+  keepCardsBtn: $("keepCardsBtn"),
+  bettingControls: $("bettingControls"),
 
   cpuTopbar: $("cpuTopbar"),
   cpuGainPreview: $("cpuGainPreview"),
@@ -1314,6 +1524,10 @@ function bindEvents() {
     goToMenu();
   });
 
+  dom.swapCard0Btn.addEventListener("click", () => { playSound(440, "triangle", 0.08); dispatchDraw(0); });
+  dom.swapCard1Btn.addEventListener("click", () => { playSound(440, "triangle", 0.08); dispatchDraw(1); });
+  dom.keepCardsBtn.addEventListener("click", () => { playSound(300, "triangle", 0.06); dispatchDraw(null); });
+
   dom.checkBtn.addEventListener("click", () => dispatchAction("check"));
   dom.betBtn.addEventListener("click", () => dispatchAction("bet"));
   dom.raiseBtn.addEventListener("click", () => dispatchAction("raise"));
@@ -1378,9 +1592,32 @@ async function startCpuGame() {
   cpuTable.startGame();
 }
 
+function dispatchDraw(cardIndex) {
+  if (mode === "cpu") {
+    cpuTable.draw(YOUR_SEAT, cardIndex);
+  } else if (mode === "online") {
+    sendWs({ type: "draw", cardIndex });
+  }
+}
+
 function cpuDecide(seat) {
   const table = cpuTable;
-  if (mode !== "cpu" || !table || table.handPhase !== "betting" || table.turnSeat !== seat) return;
+  if (mode !== "cpu" || !table) return;
+
+  // カード交換フェーズ: フィーチャーメンバーのカードがあれば交換しない、なければ40%で1枚交換
+  if (table.handPhase === "drawing" && table.turnSeat === seat) {
+    const p = table.players[seat];
+    const hasFeatured = p.holeCards.some(c => c.name === table.featuredMember);
+    if (hasFeatured) {
+      table.draw(seat, null);
+    } else {
+      const swap = Math.random() < 0.4 ? Math.floor(Math.random() * 2) : null;
+      table.draw(seat, swap);
+    }
+    return;
+  }
+
+  if (table.handPhase !== "betting" || table.turnSeat !== seat) return;
 
   const p = table.players[seat];
   const callAmount = table.callAmountFor(seat);
@@ -1626,7 +1863,8 @@ function buildViewModelFromLocalTable(table) {
   const PHASE_LABELS = ["プリフロップ", "フロップ", "ターン", "リバー"];
 
   return {
-    phaseLabel: table.handPhase === "betting" ? PHASE_LABELS[table.phaseIndex]
+    phaseLabel: table.handPhase === "drawing" ? "カード交換"
+      : table.handPhase === "betting" ? PHASE_LABELS[table.phaseIndex]
       : table.handPhase === "result" ? "ショーダウン"
       : table.handPhase === "gameover" ? "終了" : "待機中",
     communityCards: table.communityCards,
@@ -1641,6 +1879,7 @@ function buildViewModelFromLocalTable(table) {
       connected: true,
       isYou: i === YOUR_SEAT,
       isTurn: table.turnSeat === i,
+      isDealer: i === table.dealerIndex,
       cards: (i === YOUR_SEAT || table.handPhase === "result" || table.handPhase === "gameover") ? p.holeCards : []
     })),
     message: table.message,
@@ -1656,7 +1895,9 @@ function buildViewModelFromLocalTable(table) {
     lastResult: table.lastResult,
     yourHoleCards: you.holeCards,
     deckPool: cpuDeckPool,
-    handDefs: table.HAND_DEFS
+    handDefs: table.HAND_DEFS,
+    featuredMember: table.featuredMember || null,
+    isYourDrawTurn: table.handPhase === "drawing" && table.turnSeat === YOUR_SEAT
   };
 }
 
@@ -1676,6 +1917,7 @@ function buildViewModelFromOnlineState(msg) {
       connected: p.connected,
       isYou: p.isYou,
       isTurn: p.isTurn,
+      isDealer: p.isDealer || false,
       cards: p.cards || []
     })),
     message: msg.message,
@@ -1691,7 +1933,9 @@ function buildViewModelFromOnlineState(msg) {
     lastResult: msg.lastResult,
     yourHoleCards: you ? you.cards : [],
     deckPool: SakuraHandEngine.DECKS[msg.deckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS,
-    handDefs: msg.handDefs || []
+    handDefs: msg.handDefs || [],
+    featuredMember: msg.featuredMember || null,
+    isYourDrawTurn: !!msg.isYourDrawTurn
   };
 }
 
@@ -1712,7 +1956,22 @@ function renderGenericTable(vm) {
 
   dom.phaseLabel.textContent = vm.phaseLabel;
   dom.potLabel.textContent = vm.pot;
-  renderCards(dom.communityCards, vm.communityCards, true);
+
+  // フィーチャーメンバーバナー
+  const showFeatured = vm.featuredMember && vm.handPhase !== "waiting" && vm.handPhase !== "gameover";
+  dom.featuredBanner.style.display = showFeatured ? "flex" : "none";
+  if (showFeatured) dom.featuredMemberName.textContent = vm.featuredMember;
+
+  // カード交換パネル
+  dom.drawPanel.style.display = vm.isYourDrawTurn ? "block" : "none";
+  dom.swapCard0Btn.disabled = !vm.isYourDrawTurn;
+  dom.swapCard1Btn.disabled = !vm.isYourDrawTurn;
+  dom.keepCardsBtn.disabled = !vm.isYourDrawTurn;
+
+  // ベットコントロールは交換フェーズ中は非表示
+  dom.bettingControls.style.display = vm.handPhase === "drawing" ? "none" : "";
+
+  renderCards(dom.communityCards, vm.communityCards, true, vm.featuredMember);
 
   /*
     対戦相手の手札は見せる必要がない情報なので、カードの絵は表示せず
@@ -1723,26 +1982,40 @@ function renderGenericTable(vm) {
   const you = vm.seats.find(seat => seat.isYou);
 
   vm.seats.filter(seat => !seat.isYou).forEach(seat => {
-    const chip = document.createElement("div");
-    chip.className = "opponent-chip" + (seat.isTurn ? " turn" : "") + (seat.folded ? " folded" : "");
+    const panel = document.createElement("div");
+    let cls = "opp-panel";
+    if (seat.isTurn) cls += " turn";
+    if (seat.folded) cls += " folded";
+    if (seat.sittingOut) cls += " sitting-out";
+    panel.className = cls;
+
+    const dealerBadge = seat.isDealer ? '<span class="dealer-badge">D</span>' : "";
+
+    const tags = [];
+    if (seat.isTurn && !seat.folded) tags.push('<span class="opp-tag tag-turn">手番</span>');
+    if (seat.folded) tags.push('<span class="opp-tag tag-fold">フォールド</span>');
+    if (seat.allIn) tags.push('<span class="opp-tag tag-allin">ALL IN</span>');
+    if (!seat.connected) tags.push('<span class="opp-tag tag-disconn">切断中</span>');
+    if (seat.bet > 0) tags.push(`<span class="opp-tag tag-bet">ベット ${seat.bet}</span>`);
 
     const revealedCardsHtml = (seat.cards && seat.cards.length)
-      ? `<div class="opponent-cards">${seat.cards.map(c => cardHTML(c, true)).join("")}</div>`
-      : "";
+      ? `<div class="opp-cards-mini">${seat.cards.map(c => cardHTML(c, true, vm.featuredMember)).join("")}</div>`
+      : (seat.cardCount > 0 && !seat.folded && !seat.sittingOut)
+        ? `<div class="opp-cards-mini">${Array(seat.cardCount).fill('<div class="card-back-mini"></div>').join("")}</div>`
+        : "";
 
-    chip.innerHTML = `
-      <div class="opponent-name">${escapeHTML(seat.name)}</div>
-      <div class="opponent-chips">${seat.chips}pt${seat.bet > 0 ? ` (B:${seat.bet})` : ""}</div>
-      <div class="seat-tags">${seatTagsHTML(seat)}</div>
+    panel.innerHTML = `
+      <div class="opp-name-bar">${dealerBadge}<span class="opp-name">${escapeHTML(seat.name)}</span></div>
+      <div class="opp-chips-row">${seat.chips}pt</div>
+      <div class="opp-tags">${tags.join("")}</div>
       ${revealedCardsHtml}
     `;
-
-    dom.opponentsStrip.appendChild(chip);
+    dom.opponentsStrip.appendChild(panel);
   });
 
   if (you) {
     dom.yourChipsBadge.textContent = `${you.chips}pt${you.bet > 0 ? ` (ベット:${you.bet})` : ""}`;
-    renderCards(dom.yourCards, you.cards, true);
+    renderCards(dom.yourCards, you.cards, true, vm.featuredMember);
   }
 
   dom.handRank.textContent = vm.yourHandName || "-";
@@ -1836,11 +2109,12 @@ function cardHTML(card, reveal) {
   `;
 }
 
-function renderCards(container, cards, reveal) {
+function renderCards(container, cards, reveal, featuredMember) {
   container.innerHTML = "";
   for (const card of (cards || [])) {
+    const isFeatured = reveal && featuredMember && card.name === featuredMember;
     const div = document.createElement("div");
-    div.className = (reveal ? "card" : "card hidden") + (reveal ? ` gen-${card.gen}` : "");
+    div.className = (reveal ? "card" : "card hidden") + (reveal ? ` gen-${card.gen}` : "") + (isFeatured ? " featured-card" : "");
     div.innerHTML = `
       <div class="gen">${escapeHTML(card.gen)}期</div>
       <div class="name">${escapeHTML(card.name)}</div>

@@ -758,6 +758,8 @@
       message: "",
       gameOver: false,
       lastResult: null,
+      featuredMember: null,
+      pendingDrawers: [],
       deckPool,
       HAND_DEFS: built.HAND_DEFS,
       HAND_NAMES: built.HAND_NAMES
@@ -792,7 +794,7 @@
       return paid;
     }
 
-    function drawCard() {
+    function dealCard() {
       return table.deck.pop();
     }
 
@@ -871,13 +873,13 @@
       table.phaseIndex = (table.phaseIndex || 0) + 1;
 
       if (table.phaseIndex === 1) {
-        table.communityCards.push(drawCard(), drawCard(), drawCard());
+        table.communityCards.push(dealCard(), dealCard(), dealCard());
         table.message = "フロップ公開！";
       } else if (table.phaseIndex === 2) {
-        table.communityCards.push(drawCard());
+        table.communityCards.push(dealCard());
         table.message = "ターン公開！";
       } else if (table.phaseIndex === 3) {
-        table.communityCards.push(drawCard());
+        table.communityCards.push(dealCard());
         table.message = "リバー公開！";
       } else {
         showdownAndAward();
@@ -986,6 +988,45 @@
       }
     }
 
+    function startPreflop() {
+      const activeOrder = seatsInOrderFrom(table.dealerIndex, p => !p.sittingOut);
+      const sbSeat = activeOrder[0];
+      const bbSeat = activeOrder.length > 1 ? activeOrder[1] : activeOrder[0];
+
+      commitBet(table.players[sbSeat], smallBlind);
+      commitBet(table.players[bbSeat], bigBlind);
+      table.currentBetLevel = table.players[bbSeat].betThisRound;
+
+      table.handPhase = "betting";
+      table.turnSeat = null;
+      table.pendingDrawers = [];
+      table.message = `${table.players[sbSeat].name}がSB(${smallBlind}pt)、${table.players[bbSeat].name}がBB(${bigBlind}pt)を払いました。`;
+
+      table.pendingActors = seatsInOrderFrom(bbSeat, p => !p.sittingOut && !p.folded && !p.allIn && p.chips > 0);
+      promptNext();
+    }
+
+    function playerDraw(seat, cardIndex) {
+      if (table.handPhase !== "drawing") return;
+      const pendingIdx = table.pendingDrawers.indexOf(seat);
+      if (pendingIdx < 0 || table.turnSeat !== seat) return;
+
+      const p = table.players[seat];
+      if ((cardIndex === 0 || cardIndex === 1) && p.holeCards[cardIndex]) {
+        p.holeCards[cardIndex] = dealCard();
+      }
+
+      table.pendingDrawers.splice(pendingIdx, 1);
+
+      if (table.pendingDrawers.length === 0) {
+        startPreflop();
+      } else {
+        table.turnSeat = table.pendingDrawers[0];
+        notifyChange();
+        if (isBot(table.turnSeat)) onBotTurn(table.turnSeat);
+      }
+    }
+
     function startHand() {
       table.players.forEach(p => { p.sittingOut = p.chips <= 0; });
       const activeCount = table.players.filter(p => !p.sittingOut).length;
@@ -1017,25 +1058,38 @@
       table.deck = shuffle(buildDeck(deckPool));
 
       table.players.forEach(p => {
-        if (!p.sittingOut) p.holeCards = [drawCard(), drawCard()];
+        if (!p.sittingOut) p.holeCards = [dealCard(), dealCard()];
       });
 
-      const activeOrder = seatsInOrderFrom(table.dealerIndex, p => !p.sittingOut);
-      const sbSeat = activeOrder[0];
-      const bbSeat = activeOrder.length > 1 ? activeOrder[1] : activeOrder[0];
+      /* フィーチャーメンバー選出: ランダムに1名を選び、フロップに確定登場させる。
+         デッキ残り札から最初に見つかったそのメンバーのカードをデッキ先頭(次に引かれる位置)へ移動。 */
+      const featuredIdx = Math.floor(Math.random() * deckPool.length);
+      table.featuredMember = deckPool[featuredIdx].name;
+      let fIdx = -1;
+      for (let i = table.deck.length - 1; i >= 0; i--) {
+        if (table.deck[i].name === table.featuredMember) { fIdx = i; break; }
+      }
+      if (fIdx >= 0 && fIdx !== table.deck.length - 1) {
+        const [fc] = table.deck.splice(fIdx, 1);
+        table.deck.push(fc);
+      }
 
-      commitBet(table.players[sbSeat], smallBlind);
-      commitBet(table.players[bbSeat], bigBlind);
-      table.currentBetLevel = table.players[bbSeat].betThisRound;
+      /* カード交換フェーズ: 各プレイヤーが1枚まで交換できる */
+      table.handPhase = "drawing";
+      table.pendingDrawers = seatsInOrderFrom(table.dealerIndex, p => !p.sittingOut);
+      table.message = `第${table.handCount}ハンド開始！★フィーチャーメンバー：${table.featuredMember}★ フロップに確定登場します。カード交換フェーズ中です。`;
 
-      table.handPhase = "betting";
-      table.message = `第${table.handCount}ハンド開始。${table.players[sbSeat].name}がSB(${smallBlind}pt)、${table.players[bbSeat].name}がBB(${bigBlind}pt)を払いました。`;
-
-      table.pendingActors = seatsInOrderFrom(bbSeat, p => !p.sittingOut && !p.folded && !p.allIn && p.chips > 0);
-      promptNext();
+      if (table.pendingDrawers.length > 0) {
+        table.turnSeat = table.pendingDrawers[0];
+        notifyChange();
+        if (isBot(table.turnSeat)) onBotTurn(table.turnSeat);
+      } else {
+        startPreflop();
+      }
     }
 
     table.action = action;
+    table.draw = playerDraw;
     table.startGame = function () {
       table.dealerIndex = -1;
       table.gameOver = false;

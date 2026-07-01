@@ -80,6 +80,7 @@ function createUser(username, password) {
     hash: hashPassword(password, salt),
     hands: [],
     favoriteMember: null,
+    favoriteMembers: [],
     points: STARTING_POINTS,
     rankPoints: STARTING_RANK_POINTS,
     stats: { cpuGamesPlayed: 0, cpuWins: 0, onlineWins: 0, onlineLosses: 0 }
@@ -154,7 +155,12 @@ function ensureTestAccount() {
 
   db.users[username].hands = (db.users[username].hands || []).filter(h => !testIds.has(h.id));
   db.users[username].hands.push(...validHands);
-  db.users[username].favoriteMember = db.users[username].favoriteMember || oshimen;
+  if (!db.users[username].favoriteMember) db.users[username].favoriteMember = oshimen;
+  if (!Array.isArray(db.users[username].favoriteMembers) || db.users[username].favoriteMembers.length === 0) {
+    // テスト用に最初の期から最大5人選ぶ
+    const testOshis = activePool.slice(0, 5).map(m => m.name);
+    db.users[username].favoriteMembers = testOshis;
+  }
 
   saveDb();
 }
@@ -189,6 +195,16 @@ function getFavoriteMember(username) {
   return (db.users[username] && db.users[username].favoriteMember) || null;
 }
 
+function getFavoriteMembers(username) {
+  const u = db.users[username];
+  if (!u) return [];
+  // 既存アカウントの移行: favoriteMembers未設定なら favoriteMember から生成
+  if (!Array.isArray(u.favoriteMembers) || u.favoriteMembers.length === 0) {
+    return u.favoriteMember ? [u.favoriteMember] : [];
+  }
+  return u.favoriteMembers;
+}
+
 /* 既存アカウント(points/stats/rankPoints追加前に作成されたもの)に対する後方互換の初期値補完 */
 function ensureUserDefaults(username) {
   const u = db.users[username];
@@ -201,6 +217,10 @@ function ensureUserDefaults(username) {
   if (typeof u.stats.cpuWins !== "number") { u.stats.cpuWins = 0; changed = true; }
   if (typeof u.stats.onlineWins !== "number") { u.stats.onlineWins = 0; changed = true; }
   if (typeof u.stats.onlineLosses !== "number") { u.stats.onlineLosses = 0; changed = true; }
+  if (!Array.isArray(u.favoriteMembers)) {
+    u.favoriteMembers = u.favoriteMember ? [u.favoriteMember] : [];
+    changed = true;
+  }
   if (changed) saveDb();
 }
 
@@ -246,6 +266,7 @@ function buildProfilePayload(username) {
     username,
     hands: getUserHands(username),
     favoriteMember: getFavoriteMember(username),
+    favoriteMembers: getFavoriteMembers(username),
     points: getUserPoints(username),
     stats: getUserStats(username),
     rankPoints,
@@ -308,12 +329,23 @@ async function handleApi(req, res, pathname, query) {
       const username = tokens.get(body.token);
       if (!username) return sendJson(res, 401, { error: "認証エラーです。再度ログインしてください。" });
 
-      const favoriteMember = body.favoriteMember;
-      if (favoriteMember !== null && !SakuraHandEngine.MEMBERS.some(m => m.name === favoriteMember)) {
-        return sendJson(res, 400, { error: "推しメンが正しく指定されていません。" });
+      const favoriteMembers = body.favoriteMembers;
+      if (!Array.isArray(favoriteMembers)) {
+        return sendJson(res, 400, { error: "favoriteMembers は配列で送信してください。" });
+      }
+      if (favoriteMembers.length > 5) {
+        return sendJson(res, 400, { error: "推しメンは最大5人まで選べます。" });
+      }
+      const allNames = new Set(SakuraHandEngine.MEMBERS.map(m => m.name));
+      for (const name of favoriteMembers) {
+        if (!allNames.has(name)) {
+          return sendJson(res, 400, { error: `推しメンが正しく指定されていません: ${name}` });
+        }
       }
 
-      db.users[username].favoriteMember = favoriteMember;
+      db.users[username].favoriteMembers = favoriteMembers;
+      // 後方互換: 1人目を favoriteMember にも保存
+      db.users[username].favoriteMember = favoriteMembers[0] || null;
       saveDb();
       return sendJson(res, 200, buildProfilePayload(username));
     }
@@ -674,10 +706,19 @@ function startGameForWs(ws) {
     .filter(h => room.deckPoolName === "all" || (h.poolType || "active") === "active");
   const deckPool = SakuraHandEngine.DECKS[room.deckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS;
 
+  // 各プレイヤーの推しメンをカウント: 推している人数だけデッキのコピーを削減
+  const oshimenCounts = {};
+  for (const u of room.usernames) {
+    for (const name of getFavoriteMembers(u)) {
+      oshimenCounts[name] = (oshimenCounts[name] || 0) + 1;
+    }
+  }
+
   room.table = SakuraHandEngine.createTable({
     playerNames: room.usernames.slice(),
     customHandsPool,
     deckPool,
+    oshimenCounts,
     onChange: () => {
       broadcastState(room);
       scheduleTurnTimeout(room);

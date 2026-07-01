@@ -844,9 +844,9 @@
       <p class="lead"><b id="accountUsernameText"></b> さんの設定</p>
 
       <h2>推しメン</h2>
-      <p class="small">対戦中・ランキングに表示される、あなたの推しメンを1人選んでください。</p>
+      <p class="small">推しメンを<b>最大5人</b>まで選べます。選んだメンバーのカードはデッキから推しているプレイヤーの人数分減ります（推しメン争奪戦！）。</p>
       <div class="member-grid" id="favoriteMemberGrid"></div>
-      <p class="small" id="favoriteMemberSelected" style="margin-top:8px;"></p>
+      <p class="small" id="favoriteMemberSelected" style="margin-top:8px;">選択中：(未設定)</p>
 
       <h2 style="margin-top:20px;">持ち点</h2>
       <div class="stat" style="display:inline-block; min-width:160px;">
@@ -1184,8 +1184,9 @@ const CPU_STARTING_CHIPS = 500;
 let myToken = localStorage.getItem(TOKEN_KEY) || null;
 let myUsername = localStorage.getItem(USERNAME_KEY) || null;
 let myHands = [];
-let myFavoriteMember = null;
-let pendingFavoriteMember = null;
+let myFavoriteMember = null;       // 後方互換 (1人目)
+let myFavoriteMembers = [];        // 最大5人
+let pendingFavoriteMembers = [];   // 保存前の編集中状態
 let myPoints = 0;
 let myStats = { cpuGamesPlayed: 0, cpuWins: 0, onlineWins: 0, onlineLosses: 0 };
 let myRankPoints = 0;
@@ -1232,6 +1233,7 @@ async function fetchMyProfile() {
   const data = await apiCall(`/api/profile?token=${encodeURIComponent(myToken)}`, "GET");
   myHands = data.hands || [];
   myFavoriteMember = data.favoriteMember || null;
+  myFavoriteMembers = Array.isArray(data.favoriteMembers) ? data.favoriteMembers : (myFavoriteMember ? [myFavoriteMember] : []);
   myPoints = typeof data.points === "number" ? data.points : myPoints;
   myStats = data.stats || myStats;
   myRankPoints = typeof data.rankPoints === "number" ? data.rankPoints : myRankPoints;
@@ -1275,6 +1277,7 @@ function onLoggedIn(data) {
   myUsername = data.username;
   myHands = data.hands || [];
   myFavoriteMember = data.favoriteMember || null;
+  myFavoriteMembers = Array.isArray(data.favoriteMembers) ? data.favoriteMembers : (myFavoriteMember ? [myFavoriteMember] : []);
   myPoints = typeof data.points === "number" ? data.points : 1000;
   myStats = data.stats || { cpuGamesPlayed: 0, cpuWins: 0, onlineWins: 0, onlineLosses: 0 };
   myRankPoints = typeof data.rankPoints === "number" ? data.rankPoints : 1000;
@@ -1333,7 +1336,7 @@ function openHandListScreen() {
 async function openAccountScreen() {
   try { await fetchMyProfile(); } catch (e) { /* 直前のデータで表示を継続 */ }
 
-  pendingFavoriteMember = myFavoriteMember;
+  pendingFavoriteMembers = [...myFavoriteMembers];
   dom.accountMessage.textContent = "";
   dom.accountUsernameText.textContent = myUsername;
   dom.accountPoints.textContent = myPoints;
@@ -1382,30 +1385,45 @@ function renderGroupedMemberGrid(container, members, isSelected, onClick) {
   }
 }
 
+function updateFavoriteMemberSelectedText() {
+  const count = pendingFavoriteMembers.length;
+  if (count === 0) {
+    dom.favoriteMemberSelected.textContent = "選択中：(未設定)";
+  } else {
+    dom.favoriteMemberSelected.textContent = `選択中(${count}/5)：${pendingFavoriteMembers.join("、")}`;
+  }
+}
+
 function renderFavoriteMemberGrid() {
   renderGroupedMemberGrid(
     dom.favoriteMemberGrid,
     SakuraHandEngine.MEMBERS,
-    member => pendingFavoriteMember === member.name,
+    member => pendingFavoriteMembers.includes(member.name),
     member => {
-      pendingFavoriteMember = pendingFavoriteMember === member.name ? null : member.name;
+      const idx = pendingFavoriteMembers.indexOf(member.name);
+      if (idx >= 0) {
+        pendingFavoriteMembers.splice(idx, 1);
+      } else if (pendingFavoriteMembers.length < 5) {
+        pendingFavoriteMembers.push(member.name);
+      } else {
+        dom.accountMessage.style.color = "var(--red)";
+        dom.accountMessage.textContent = "推しメンは最大5人まで選べます。";
+        return;
+      }
+      dom.accountMessage.textContent = "";
       renderFavoriteMemberGrid();
-      dom.favoriteMemberSelected.textContent = pendingFavoriteMember
-        ? `選択中：${pendingFavoriteMember}`
-        : "選択中：(未設定)";
+      updateFavoriteMemberSelectedText();
     }
   );
-
-  dom.favoriteMemberSelected.textContent = pendingFavoriteMember
-    ? `選択中：${pendingFavoriteMember}`
-    : "選択中：(未設定)";
+  updateFavoriteMemberSelectedText();
 }
 
 async function saveFavoriteMember() {
   dom.accountMessage.textContent = "";
   try {
-    const data = await apiCall("/api/profile", "POST", { token: myToken, favoriteMember: pendingFavoriteMember });
+    const data = await apiCall("/api/profile", "POST", { token: myToken, favoriteMembers: pendingFavoriteMembers });
     myFavoriteMember = data.favoriteMember || null;
+    myFavoriteMembers = Array.isArray(data.favoriteMembers) ? data.favoriteMembers : [];
     dom.accountMessage.style.color = "var(--green)";
     dom.accountMessage.textContent = "推しメンを保存しました。";
   } catch (e) {
@@ -1558,6 +1576,52 @@ function bindEvents() {
 ========================================================= */
 const YOUR_SEAT = 0;
 
+/* CPUにランダムで推しメン5人を割り当てる */
+function pickCpuOshis(pool, count) {
+  const arr = SakuraHandEngine.shuffle([...pool]);
+  return arr.slice(0, count).map(m => m.name);
+}
+
+/*
+  CPUの推しメンリストを元にオリジナル役を自動生成する。
+  推しメンをname枠に入れ、残りをwild枠で埋める。
+  oshimenCountsでコピーが多く残るメンバー(競合が少ない)を優先して採用することで
+  オリジナル役の発生確率が高い役を生成する。
+*/
+function generateCpuHands(cpuOshis, poolType, oshimenCounts) {
+  const validNames = new Set(
+    (poolType === "all" ? SakuraHandEngine.MEMBERS : SakuraHandEngine.ACTIVE_MEMBERS).map(m => m.name)
+  );
+
+  // 残りコピーが多い(競合プレイヤーが少ない)順に並べる → 確率が高い組み合わせを優先
+  const sorted = cpuOshis
+    .filter(n => validNames.has(n))
+    .sort((a, b) => {
+      const remA = Math.max(0, SakuraHandEngine.COPIES_PER_MEMBER - (oshimenCounts[a] || 0));
+      const remB = Math.max(0, SakuraHandEngine.COPIES_PER_MEMBER - (oshimenCounts[b] || 0));
+      return remB - remA;
+    });
+
+  if (sorted.length === 0) return [];
+
+  const hands = [];
+  for (let size = 2; size <= 5; size++) {
+    const oshi = sorted[0];
+    const slots = [{ type: "name", value: oshi }];
+    for (let i = 1; i < size; i++) slots.push({ type: "wild" });
+
+    if (SakuraHandEngine.isValidSlotsForPool(slots, poolType)) {
+      hands.push({
+        id: `_cpu_${oshi}_${size}`,
+        label: `${oshi}を含む役(${size}枚)`,
+        slots,
+        poolType
+      });
+    }
+  }
+  return hands;
+}
+
 async function startCpuGame() {
   try { await fetchMyProfile(); } catch (e) { /* 直前のオリジナル役データで続行 */ }
 
@@ -1574,13 +1638,37 @@ async function startCpuGame() {
   lastRenderedHandPhase = null;
 
   cpuDeckPool = SakuraHandEngine.DECKS[cpuDeckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS;
-  const cpuCustomHandsPool = myHands.filter(h => cpuDeckPoolName === "all" || (h.poolType || "active") === "active");
+  const poolType = cpuDeckPoolName === "all" ? "all" : "active";
+
+  // CPU3人それぞれにランダムで推しメン5人を割り当てる
+  const cpuOshisList = [
+    pickCpuOshis(cpuDeckPool, 5),
+    pickCpuOshis(cpuDeckPool, 5),
+    pickCpuOshis(cpuDeckPool, 5)
+  ];
+
+  // 全プレイヤー(人間+CPU3人)の推しメンカウントを集計
+  const oshimenCounts = {};
+  for (const name of myFavoriteMembers) {
+    oshimenCounts[name] = (oshimenCounts[name] || 0) + 1;
+  }
+  for (const oshis of cpuOshisList) {
+    for (const name of oshis) {
+      oshimenCounts[name] = (oshimenCounts[name] || 0) + 1;
+    }
+  }
+
+  // プレイヤーのオリジナル役 + CPU3人分の自動生成役を結合
+  const playerHands = myHands.filter(h => cpuDeckPoolName === "all" || (h.poolType || "active") === "active");
+  const cpuHandsAll = cpuOshisList.flatMap(oshis => generateCpuHands(oshis, poolType, oshimenCounts));
+  const cpuCustomHandsPool = [...playerHands, ...cpuHandsAll];
 
   cpuTable = SakuraHandEngine.createTable({
     playerNames: [myUsername, "CPU 1", "CPU 2", "CPU 3"],
     customHandsPool: cpuCustomHandsPool,
     startingChips: CPU_STARTING_CHIPS,
     deckPool: cpuDeckPool,
+    oshimenCounts,
     onChange: renderFromCpuTable,
     isBot: seat => seat !== YOUR_SEAT,
     onBotTurn: seat => setTimeoutSafe(() => cpuDecide(seat), 700 + Math.random() * 500),

@@ -30,10 +30,13 @@
   const COPIES_PER_MEMBER = 4;
   const DECKS = { active: ACTIVE_MEMBERS, all: MEMBERS };
 
-  function buildDeck(pool) {
+  /* oshimenCounts: { memberName: 減らす枚数 } — 推しているプレイヤーの人数分コピーを削減する */
+  function buildDeck(pool, oshimenCounts) {
     const deck = [];
     for (const member of pool) {
-      for (let i = 0; i < COPIES_PER_MEMBER; i++) deck.push(member);
+      const reduction = (oshimenCounts && oshimenCounts[member.name]) || 0;
+      const copies = Math.max(0, COPIES_PER_MEMBER - reduction);
+      for (let i = 0; i < copies; i++) deck.push(member);
     }
     return deck;
   }
@@ -731,6 +734,7 @@
     const isDisposed = options.isDisposed || function () { return false; };
     const autoAdvanceMs = options.autoAdvanceMs || null;
     const deckPool = options.deckPool || ACTIVE_MEMBERS;
+    const oshimenCounts = options.oshimenCounts || {};
 
     const built = buildHandDefs(customHandsPool, deckPool);
 
@@ -1055,7 +1059,7 @@
       table.handCount += 1;
       table.lastResult = null;
       table.dealerIndex = nextSeat(table.dealerIndex, p => !p.sittingOut);
-      table.deck = shuffle(buildDeck(deckPool));
+      table.deck = shuffle(buildDeck(deckPool, oshimenCounts));
 
       table.players.forEach(p => {
         if (!p.sittingOut) p.holeCards = [dealCard(), dealCard()];

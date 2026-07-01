@@ -1593,14 +1593,10 @@ function generateCpuHands(cpuOshis, poolType, oshimenCounts) {
     (poolType === "all" ? SakuraHandEngine.MEMBERS : SakuraHandEngine.ACTIVE_MEMBERS).map(m => m.name)
   );
 
-  // 残りコピーが多い(競合プレイヤーが少ない)順に並べる → 確率が高い組み合わせを優先
+  // ブースト枚数が多い(推しているプレイヤーが多い＝デッキに多く入っている)順に並べる → 確率が高い役を優先
   const sorted = cpuOshis
     .filter(n => validNames.has(n))
-    .sort((a, b) => {
-      const remA = Math.max(0, SakuraHandEngine.COPIES_PER_MEMBER - (oshimenCounts[a] || 0));
-      const remB = Math.max(0, SakuraHandEngine.COPIES_PER_MEMBER - (oshimenCounts[b] || 0));
-      return remB - remA;
-    });
+    .sort((a, b) => (oshimenCounts[b] || 0) - (oshimenCounts[a] || 0));
 
   if (sorted.length === 0) return [];
 
@@ -1984,6 +1980,7 @@ function buildViewModelFromLocalTable(table) {
     yourHoleCards: you.holeCards,
     deckPool: cpuDeckPool,
     handDefs: table.HAND_DEFS,
+    oshimenCounts: table.oshimenCounts || {},
     featuredMember: table.featuredMember || null,
     isYourDrawTurn: table.handPhase === "drawing" && table.turnSeat === YOUR_SEAT
   };
@@ -2022,6 +2019,7 @@ function buildViewModelFromOnlineState(msg) {
     yourHoleCards: you ? you.cards : [],
     deckPool: SakuraHandEngine.DECKS[msg.deckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS,
     handDefs: msg.handDefs || [],
+    oshimenCounts: msg.oshimenCounts || {},
     featuredMember: msg.featuredMember || null,
     isYourDrawTurn: !!msg.isYourDrawTurn
   };
@@ -2124,7 +2122,7 @@ function renderLiveProbabilities(vm) {
   lastLiveProbCandidates = [];
 
   if (vm.yourHoleCards && vm.yourHoleCards.length && vm.deckPool && vm.handDefs && vm.handDefs.length && vm.handPhase === "betting") {
-    const live = SakuraHandEngine.calcLiveHandProbabilities(vm.yourHoleCards, vm.communityCards, vm.deckPool, vm.handDefs);
+    const live = SakuraHandEngine.calcLiveHandProbabilities(vm.yourHoleCards, vm.communityCards, vm.deckPool, vm.handDefs, vm.oshimenCounts);
     lastLiveProbCandidates = live
       .filter(h => h.liveProbability > 0 && h.liveProbability < 0.999)
       .sort((a, b) => a.liveProbability - b.liveProbability)

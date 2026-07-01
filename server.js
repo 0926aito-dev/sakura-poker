@@ -552,6 +552,7 @@ function buildStateFor(room, viewerSeat) {
     deckPoolName: room.deckPoolName,
     handPhase: table.handPhase,
     featuredMember: table.featuredMember || null,
+    oshimenCounts: table.oshimenCounts || {},
     pendingDrawers: table.pendingDrawers || [],
     isYourDrawTurn: table.handPhase === "drawing" && table.turnSeat === viewerSeat,
     phaseLabel:
@@ -706,7 +707,7 @@ function startGameForWs(ws) {
     .filter(h => room.deckPoolName === "all" || (h.poolType || "active") === "active");
   const deckPool = SakuraHandEngine.DECKS[room.deckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS;
 
-  // 各プレイヤーの推しメンをカウント: 推している人数だけデッキのコピーを削減
+  // 各プレイヤーの推しメンをカウント: 推している人数だけデッキのコピーをブースト
   const oshimenCounts = {};
   for (const u of room.usernames) {
     for (const name of getFavoriteMembers(u)) {

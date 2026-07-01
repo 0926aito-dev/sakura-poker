@@ -25,17 +25,18 @@
   const ACTIVE_MEMBERS = MEMBERS.filter(m => m.status !== "graduated");
   const GRADUATED_MEMBERS = MEMBERS.filter(m => m.status === "graduated");
 
-  /* デッキ構成: 1メンバーにつき4枚の物理カードが存在する(同名カードが4枚)。
+  /* デッキ構成: 1メンバーにつき1枚(ベース)。
+     oshimenCounts による推しメンブーストで枚数が増える。
      使用デッキは「在籍メンバーのみ」「全メンバー(卒業済みを含む)」の2種類。 */
-  const COPIES_PER_MEMBER = 4;
+  const COPIES_PER_MEMBER = 1;
   const DECKS = { active: ACTIVE_MEMBERS, all: MEMBERS };
 
-  /* oshimenCounts: { memberName: 減らす枚数 } — 推しているプレイヤーの人数分コピーを削減する */
+  /* oshimenCounts: { memberName: 増やす枚数 } — 推しているプレイヤーの人数分コピーを追加する(base 1 + boost) */
   function buildDeck(pool, oshimenCounts) {
     const deck = [];
     for (const member of pool) {
-      const reduction = (oshimenCounts && oshimenCounts[member.name]) || 0;
-      const copies = Math.max(0, COPIES_PER_MEMBER - reduction);
+      const bonus = (oshimenCounts && oshimenCounts[member.name]) || 0;
+      const copies = 1 + bonus;
       for (let i = 0; i < copies; i++) deck.push(member);
     }
     return deck;
@@ -259,17 +260,29 @@
     「期ごとの人数」「指名する人数」はすべて物理カード枚数に換算して計算します。
     pool未指定時は全メンバー(MEMBERS)を対象とします。
   */
-  function calcHandProbability(handDef, pool) {
-    pool = pool || MEMBERS;
-    if (handDef.type === "high") return 1;
-    if (handDef.type === "custom") return exactCustomProbability(handDef, pool);
-    return exactGenProbability(handDef, pool);
+  /* pool 内の各メンバーのデッキコピー数マップを返す */
+  function buildCopiesMap(pool, oshimenCounts) {
+    const map = {};
+    for (const m of pool) {
+      map[m.name] = 1 + ((oshimenCounts && oshimenCounts[m.name]) || 0);
+    }
+    return map;
   }
 
-  function exactGenProbability(handDef, pool) {
+  function calcHandProbability(handDef, pool, oshimenCounts) {
     pool = pool || MEMBERS;
-    const genSizes = Object.values(countBy(pool, "gen")).map(n => n * COPIES_PER_MEMBER);
-    const total = pool.length * COPIES_PER_MEMBER;
+    if (handDef.type === "high") return 1;
+    if (handDef.type === "custom") return exactCustomProbability(handDef, pool, oshimenCounts);
+    return exactGenProbability(handDef, pool, oshimenCounts);
+  }
+
+  function exactGenProbability(handDef, pool, oshimenCounts) {
+    pool = pool || MEMBERS;
+    const copiesMap = buildCopiesMap(pool, oshimenCounts);
+    const genBuckets = {};
+    for (const m of pool) genBuckets[m.gen] = (genBuckets[m.gen] || 0) + copiesMap[m.name];
+    const genSizes = Object.values(genBuckets);
+    const total = Object.values(copiesMap).reduce((s, n) => s + n, 0);
     const totalCombos = comb(total, 5);
     if (totalCombos === 0) return 0;
 
@@ -319,12 +332,13 @@
     gen枠とgroup枠は同じ役の中で混在しない(validateSlotsAgainstPoolで保証済み)ため、
     属性の種類は最大1つだけ扱えばよい。
   */
-  function exactCustomProbability(handDef, pool) {
+  function exactCustomProbability(handDef, pool, oshimenCounts) {
     pool = pool || MEMBERS;
     const slots = getHandSlots(handDef);
     if (!validateSlotsAgainstPool(slots, pool)) return 0;
 
-    const total = pool.length * COPIES_PER_MEMBER;
+    const copiesMap = buildCopiesMap(pool, oshimenCounts);
+    const total = Object.values(copiesMap).reduce((s, n) => s + n, 0);
     const totalCombos = comb(total, 5);
     if (totalCombos === 0) return 0;
 
@@ -345,11 +359,11 @@
     if (attrType) {
       for (const p of otherMembers) {
         const v = p[attrType];
-        otherGroupSizes[v] = (otherGroupSizes[v] || 0) + 1;
+        otherGroupSizes[v] = (otherGroupSizes[v] || 0) + copiesMap[p.name];
       }
     }
     const otherAttrKeys = Object.keys(otherGroupSizes);
-    const otherTotal = otherMembers.length * COPIES_PER_MEMBER;
+    const otherTotal = otherMembers.reduce((s, m) => s + copiesMap[m.name], 0);
 
     const namedAttrValue = {};
     if (attrType) {
@@ -381,7 +395,7 @@
         }
 
         const v = otherAttrKeys[idx];
-        const capacity = otherGroupSizes[v] * COPIES_PER_MEMBER;
+        const capacity = otherGroupSizes[v];
         const maxDraw = Math.min(capacity, rem);
         for (let d = 0; d <= maxDraw; d++) {
           enumerateOther(idx + 1, rem - d, w * comb(capacity, d), { ...drawnByAttr, [v]: d });
@@ -399,14 +413,15 @@
 
       const name = namedList[idx];
       const need = nameRequired[name];
-      for (let n = need; n <= COPIES_PER_MEMBER; n++) {
+      const maxCopies = copiesMap[name] || 1;
+      for (let n = need; n <= maxCopies; n++) {
         const surplus = n - need;
         const nextSurplus = { ...surplusByAttr };
         if (attrType) {
           const v = namedAttrValue[name];
           nextSurplus[v] = (nextSurplus[v] || 0) + surplus;
         }
-        recurseNamed(idx + 1, nextSurplus, drawnFromNamed + n, ways * comb(COPIES_PER_MEMBER, n));
+        recurseNamed(idx + 1, nextSurplus, drawnFromNamed + n, ways * comb(maxCopies, n));
       }
     }
 
@@ -427,7 +442,7 @@
 
     customHands: [{id,label,names}, ...]  (idで重複除去)
   */
-  function buildHandDefs(customHands, pool) {
+  function buildHandDefs(customHands, pool, oshimenCounts) {
     pool = pool || MEMBERS;
     const seen = new Set();
     let customPool = (customHands || [])
@@ -439,13 +454,13 @@
           label: h.label || `オリジナル役(${slots.map(describeSlot).join("・")})`,
           type: "custom",
           slots,
-          probability: calcHandProbability({ type: "custom", slots }, pool)
+          probability: calcHandProbability({ type: "custom", slots }, pool, oshimenCounts)
         };
       });
 
     const fixedBase = BASE_HANDS
       .filter(h => h.type !== "high")
-      .map(h => ({ ...h, probability: calcHandProbability(h, pool) }));
+      .map(h => ({ ...h, probability: calcHandProbability(h, pool, oshimenCounts) }));
 
     const merged = [];
 
@@ -541,15 +556,16 @@
     holeCards/communityCards: このプレイヤーから見えているカードのみを渡してください
     (他家の手札は不明情報として扱い、計算には含めません)。
   */
-  function calcLiveHandProbabilities(holeCards, communityCards, pool, HAND_DEFS) {
+  function calcLiveHandProbabilities(holeCards, communityCards, pool, HAND_DEFS, oshimenCounts) {
     pool = pool || MEMBERS;
     const known = [...holeCards, ...communityCards];
     const drawsRemaining = Math.max(0, 5 - communityCards.length);
 
+    const copiesMap = buildCopiesMap(pool, oshimenCounts);
     const knownCountByName = countBy(known, "name");
     const remainingByName = {};
     for (const m of pool) {
-      remainingByName[m.name] = COPIES_PER_MEMBER - (knownCountByName[m.name] || 0);
+      remainingByName[m.name] = Math.max(0, copiesMap[m.name] - (knownCountByName[m.name] || 0));
     }
 
     const genGroups = {};
@@ -736,7 +752,7 @@
     const deckPool = options.deckPool || ACTIVE_MEMBERS;
     const oshimenCounts = options.oshimenCounts || {};
 
-    const built = buildHandDefs(customHandsPool, deckPool);
+    const built = buildHandDefs(customHandsPool, deckPool, oshimenCounts);
 
     const table = {
       players: names.map(name => ({
@@ -765,6 +781,7 @@
       featuredMember: null,
       pendingDrawers: [],
       deckPool,
+      oshimenCounts,
       HAND_DEFS: built.HAND_DEFS,
       HAND_NAMES: built.HAND_NAMES
     };

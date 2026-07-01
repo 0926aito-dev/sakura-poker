@@ -329,23 +329,16 @@ async function handleApi(req, res, pathname, query) {
       const username = tokens.get(body.token);
       if (!username) return sendJson(res, 401, { error: "認証エラーです。再度ログインしてください。" });
 
-      const favoriteMembers = body.favoriteMembers;
-      if (!Array.isArray(favoriteMembers)) {
-        return sendJson(res, 400, { error: "favoriteMembers は配列で送信してください。" });
-      }
-      if (favoriteMembers.length > 5) {
-        return sendJson(res, 400, { error: "推しメンは最大5人まで選べます。" });
-      }
-      const allNames = new Set(SakuraHandEngine.MEMBERS.map(m => m.name));
-      for (const name of favoriteMembers) {
-        if (!allNames.has(name)) {
-          return sendJson(res, 400, { error: `推しメンが正しく指定されていません: ${name}` });
+      const favoriteMember = body.favoriteMember || null;
+      if (favoriteMember !== null) {
+        const allNames = new Set(SakuraHandEngine.MEMBERS.map(m => m.name));
+        if (!allNames.has(favoriteMember)) {
+          return sendJson(res, 400, { error: `推しメンが正しく指定されていません: ${favoriteMember}` });
         }
       }
 
-      db.users[username].favoriteMembers = favoriteMembers;
-      // 後方互換: 1人目を favoriteMember にも保存
-      db.users[username].favoriteMember = favoriteMembers[0] || null;
+      db.users[username].favoriteMember = favoriteMember;
+      db.users[username].favoriteMembers = favoriteMember ? [favoriteMember] : [];
       saveDb();
       return sendJson(res, 200, buildProfilePayload(username));
     }
@@ -707,11 +700,22 @@ function startGameForWs(ws) {
     .filter(h => room.deckPoolName === "all" || (h.poolType || "active") === "active");
   const deckPool = SakuraHandEngine.DECKS[room.deckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS;
 
-  // 各プレイヤーの推しメンをカウント: 推している人数だけデッキのコピーをブースト
+  // オリジナル役のスロットからデッキブーストを計算
+  // name枠 → そのメンバー+1、wild/gen/group枠 → 対象からランダムに選んで+1
   const oshimenCounts = {};
-  for (const u of room.usernames) {
-    for (const name of getFavoriteMembers(u)) {
-      oshimenCounts[name] = (oshimenCounts[name] || 0) + 1;
+  for (const hand of customHandsPool) {
+    for (const slot of (hand.slots || [])) {
+      if (slot.type === "name") {
+        oshimenCounts[slot.value] = (oshimenCounts[slot.value] || 0) + 1;
+      } else {
+        let eligible = deckPool;
+        if (slot.type === "gen") eligible = deckPool.filter(m => m.gen === slot.value);
+        else if (slot.type === "group") eligible = deckPool.filter(m => m.group === slot.value);
+        if (eligible.length > 0) {
+          const picked = eligible[Math.floor(Math.random() * eligible.length)];
+          oshimenCounts[picked.name] = (oshimenCounts[picked.name] || 0) + 1;
+        }
+      }
     }
   }
 

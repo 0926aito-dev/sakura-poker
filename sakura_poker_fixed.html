@@ -64,7 +64,31 @@
   .screen { display: none; min-height: 100vh; padding: 18px; }
   .center { align-items: center; justify-content: center; }
   .screen.active { display: block; }
-  .screen.active.center { display: flex; }
+  .screen.active.center { display: flex; flex-direction: column; }
+
+  /* ===================== メニュー画面 ===================== */
+  #menuScreen { padding: 16px; gap: 12px; overflow: hidden; max-height: 100vh; }
+  .menu-logo { text-align: center; }
+  .menu-logo-title { font-size: 28px; font-weight: 900; letter-spacing: 2px; color: var(--gold); text-shadow: 0 2px 16px rgba(255,216,107,0.5); }
+  .menu-logo-sub { font-size: 12px; color: rgba(255,255,255,0.55); margin: 2px 0 0; letter-spacing: 3px; }
+  .menu-stats-bar { display: flex; gap: 8px; width: 100%; max-width: 380px; }
+  .menu-stat-chip { flex: 1; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 7px 8px; text-align: center; }
+  .msc-label { display: block; font-size: 10px; color: rgba(255,255,255,0.55); }
+  .menu-stat-chip b { display: block; font-size: 15px; color: var(--gold); line-height: 1.3; }
+  .menu-deck-row { display: flex; align-items: center; gap: 10px; }
+  .menu-deck-label { font-size: 12px; color: rgba(255,255,255,0.65); white-space: nowrap; }
+  .menu-modes { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 380px; }
+  .menu-mode-btn { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 18px; background: linear-gradient(135deg, #7c3de8, #c44dff); box-shadow: 0 6px 0 #3a1870, 0 10px 24px rgba(0,0,0,0.35); text-align: left; width: 100%; flex: none; }
+  .menu-mode-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #3a1870, 0 4px 12px rgba(0,0,0,0.3); }
+  .menu-mode-online { background: linear-gradient(135deg, #1d72c8, #3fb0ff); box-shadow: 0 6px 0 #0d3870, 0 10px 24px rgba(0,0,0,0.35); }
+  .menu-mode-online:active { box-shadow: 0 2px 0 #0d3870, 0 4px 12px rgba(0,0,0,0.3); }
+  .mmb-icon { font-size: 26px; flex-shrink: 0; line-height: 1; }
+  .mmb-texts { display: flex; flex-direction: column; }
+  .mmb-label { font-size: 17px; font-weight: 700; letter-spacing: 0.5px; }
+  .mmb-sub { font-size: 11px; color: rgba(255,255,255,0.72); margin-top: 1px; }
+  .menu-util-row { display: flex; gap: 7px; width: 100%; max-width: 380px; }
+  .menu-util-btn { flex: 1; padding: 10px 4px; font-size: 12px; border-radius: 12px; margin: 0; box-shadow: 0 4px 0 rgba(0,0,0,0.5); }
+  .menu-util-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.5); }
 
   .panel {
     width: min(1040px, 100%);
@@ -779,49 +803,56 @@
 
   <!-- ===================== メインメニュー ===================== -->
   <section id="menuScreen" class="screen center">
-    <div class="panel">
-      <h1>櫻ポーカー</h1>
-      <p class="lead" id="welcomeText"></p>
+    <div class="menu-logo">
+      <div class="menu-logo-title">🌸 櫻ポーカー</div>
+      <p class="menu-logo-sub">TEXAS HOLD'EM</p>
+    </div>
 
-      <div class="rules">
-        <div class="rule"><b>CPU対戦</b><br>あなた＋CPU3人、合計4人テーブルで対戦します。</div>
-        <div class="rule"><b>オンライン対戦</b><br>2〜4人でルームを作り、リアルタイムに対戦できます。</div>
-        <div class="rule"><b>オリジナル役</b><br>役エディターで2〜5枚のカードを指定して自分だけの役を登録できます(枚数ごとに1つまで)。</div>
+    <div class="menu-stats-bar">
+      <div class="menu-stat-chip">
+        <span class="msc-label">持ち点</span>
+        <b id="menuPoints">0</b>
       </div>
-
-      <p class="small" id="handRankingText">役の強さを計算中…</p>
-
-      <div class="actions" style="margin-top:0; margin-bottom:14px;">
-        <div class="stat" style="display:inline-block; min-width:140px;">
-          <span>持ち点</span>
-          <b id="menuPoints">0</b>
-        </div>
-        <div class="stat" style="display:inline-block; min-width:140px;">
-          <span>ランク</span>
-          <b id="menuRankTier">-</b>
-        </div>
-        <div class="stat" style="display:inline-block; min-width:140px;">
-          <span>ランクポイント</span>
-          <b id="menuRankPoints">0</b>
-        </div>
+      <div class="menu-stat-chip">
+        <span class="msc-label">ランク</span>
+        <b id="menuRankTier">-</b>
       </div>
-
-      <div class="field">
-        <label>CPU対戦で使うデッキ</label>
-        <div class="size-toggle" id="cpuDeckToggle">
-          <button data-pool="active" class="size-btn active">在籍メンバーのみ</button>
-          <button data-pool="all" class="size-btn">全メンバー(卒業済み含む)</button>
-        </div>
+      <div class="menu-stat-chip">
+        <span class="msc-label">ランクポイント</span>
+        <b id="menuRankPoints">0</b>
       </div>
+    </div>
 
-      <div class="actions">
-        <button id="startCpuBtn">CPU3人と対戦</button>
-        <button id="goOnlineBtn" class="blue">オンライン対戦</button>
-        <button id="goEditorBtn" class="success">役を編集する</button>
-        <button id="goHandListBtn" class="blue">役一覧を見る</button>
-        <button id="goAccountBtn" class="secondary">アカウント設定</button>
-        <button id="logoutBtn" class="danger">ログアウト</button>
+    <div class="menu-deck-row">
+      <span class="menu-deck-label">デッキ</span>
+      <div class="size-toggle" id="cpuDeckToggle">
+        <button data-pool="active" class="size-btn active">在籍メンバー</button>
+        <button data-pool="all" class="size-btn">全メンバー</button>
       </div>
+    </div>
+
+    <div class="menu-modes">
+      <button id="startCpuBtn" class="menu-mode-btn">
+        <span class="mmb-icon">🤖</span>
+        <span class="mmb-texts">
+          <span class="mmb-label">CPU対戦</span>
+          <span class="mmb-sub">あなた＋CPU3人でテーブル対戦</span>
+        </span>
+      </button>
+      <button id="goOnlineBtn" class="menu-mode-btn menu-mode-online">
+        <span class="mmb-icon">🌐</span>
+        <span class="mmb-texts">
+          <span class="mmb-label">オンライン対戦</span>
+          <span class="mmb-sub">2〜4人でリアルタイム対戦</span>
+        </span>
+      </button>
+    </div>
+
+    <div class="menu-util-row">
+      <button id="goEditorBtn" class="menu-util-btn success">役を編集</button>
+      <button id="goHandListBtn" class="menu-util-btn blue">役一覧</button>
+      <button id="goAccountBtn" class="menu-util-btn secondary">設定</button>
+      <button id="logoutBtn" class="menu-util-btn danger">ログアウト</button>
     </div>
   </section>
 
@@ -992,10 +1023,11 @@
 
       <!-- カード交換パネル -->
       <div id="drawPanel" class="g-draw-panel" style="display:none">
-        <div class="draw-panel-title">🔄 カード交換フェーズ：ホールカードを1枚だけ交換できます</div>
+        <div class="draw-panel-title">🔄 カード交換フェーズ</div>
         <div class="draw-buttons">
           <button id="swapCard0Btn" class="draw-card-btn">1枚目を交換</button>
           <button id="swapCard1Btn" class="draw-card-btn">2枚目を交換</button>
+          <button id="swapBothBtn" class="draw-card-btn" style="background:linear-gradient(135deg,#e87c3d,#ff5c8a);box-shadow:0 4px 0 #8a2010;">両方交換</button>
           <button id="keepCardsBtn" class="draw-card-btn secondary">交換しない</button>
         </div>
       </div>
@@ -1025,8 +1057,6 @@
 
       <!-- メタアクション -->
       <div class="actions meta-actions">
-        <button id="pauseBtn" class="secondary">一時停止</button>
-        <button id="restartBtn" class="secondary">リスタート</button>
         <button id="cashOutBtn" class="success" style="display:none">持ち点に反映</button>
         <button id="leaveGameBtn" class="secondary" style="display:none">ロビーへ</button>
       </div>
@@ -1129,6 +1159,7 @@ const dom = {
   drawPanel: $("drawPanel"),
   swapCard0Btn: $("swapCard0Btn"),
   swapCard1Btn: $("swapCard1Btn"),
+  swapBothBtn: $("swapBothBtn"),
   keepCardsBtn: $("keepCardsBtn"),
   bettingControls: $("bettingControls"),
 
@@ -1155,8 +1186,6 @@ const dom = {
   betBtn: $("betBtn"),
   raiseBtn: $("raiseBtn"),
   foldBtn: $("foldBtn"),
-  pauseBtn: $("pauseBtn"),
-  restartBtn: $("restartBtn"),
   leaveGameBtn: $("leaveGameBtn"),
   resumeBtn: $("resumeBtn"),
   againBtn: $("againBtn"),
@@ -1223,6 +1252,20 @@ async function apiCall(pathname, method, body) {
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    // セッション切れ: CPU対戦中なら持ち点を反映してからログアウト
+    if (mode === "cpu" && cpuTable && myToken) {
+      try {
+        const you = cpuTable.players[YOUR_SEAT];
+        if (you) await fetch("/api/cashout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: myToken, chips: you.chips }) });
+      } catch (_) {}
+    }
+    myToken = null;
+    localStorage.removeItem(TOKEN_KEY);
+    alert("ログイン情報の有効期限が切れました。再度ログインしてください。");
+    location.reload();
+    throw new Error("セッション切れ");
+  }
   if (!res.ok) throw new Error(data.error || "通信に失敗しました。");
   return data;
 }
@@ -1528,6 +1571,7 @@ function bindEvents() {
 
   dom.swapCard0Btn.addEventListener("click", () => { playSound(440, "triangle", 0.08); dispatchDraw(0); });
   dom.swapCard1Btn.addEventListener("click", () => { playSound(440, "triangle", 0.08); dispatchDraw(1); });
+  dom.swapBothBtn.addEventListener("click", () => { playSound(500, "triangle", 0.10); dispatchDraw("both"); });
   dom.keepCardsBtn.addEventListener("click", () => { playSound(300, "triangle", 0.06); dispatchDraw(null); });
 
   dom.checkBtn.addEventListener("click", () => dispatchAction("check"));
@@ -1535,9 +1579,7 @@ function bindEvents() {
   dom.raiseBtn.addEventListener("click", () => dispatchAction("raise"));
   dom.foldBtn.addEventListener("click", () => dispatchAction("fold"));
 
-  dom.pauseBtn.addEventListener("click", togglePause);
   dom.resumeBtn.addEventListener("click", togglePause);
-  dom.restartBtn.addEventListener("click", () => { playSound(280, "square", 0.08); startCpuGame(); });
   dom.cashOutBtn.addEventListener("click", leaveCpuGame);
   dom.toggleLiveProbBtn.addEventListener("click", () => {
     liveProbExpanded = !liveProbExpanded;
@@ -1568,8 +1610,6 @@ async function startCpuGame() {
   cpuPaused = false;
   dom.pauseLayer.classList.remove("show");
   dom.cpuTopbar.style.display = "grid";
-  dom.pauseBtn.style.display = "inline-block";
-  dom.restartBtn.style.display = "inline-block";
   dom.cashOutBtn.style.display = "inline-block";
   dom.leaveGameBtn.style.display = "none";
   dom.onlineTimerNotice.style.display = "none";
@@ -1580,6 +1620,21 @@ async function startCpuGame() {
 
   // プレイヤーのオリジナル役(デッキ種別フィルタ済み)
   const playerHands = myHands.filter(h => cpuDeckPoolName === "all" || (h.poolType || "active") === "active");
+
+  // CPU3人それぞれにランダムなオリジナル役を自動生成(name1枠+wild枠、サイズ2〜5)
+  const poolType = cpuDeckPoolName === "all" ? "all" : "active";
+  const cpuAutoHands = [];
+  const shuffledForCpu = SakuraHandEngine.shuffle([...cpuDeckPool]);
+  for (let cpuIdx = 0; cpuIdx < 3; cpuIdx++) {
+    for (let size = 2; size <= 5; size++) {
+      const member = shuffledForCpu[(cpuIdx * 4 + size) % shuffledForCpu.length];
+      const slots = [{ type: "name", value: member.name }];
+      for (let i = 1; i < size; i++) slots.push({ type: "wild" });
+      if (SakuraHandEngine.isValidSlotsForPool(slots, poolType)) {
+        cpuAutoHands.push({ id: `_cpu${cpuIdx + 1}_s${size}`, label: `CPU${cpuIdx + 1} ${member.name}(${size}枚)`, slots, poolType });
+      }
+    }
+  }
 
   // オリジナル役のスロットからデッキブーストを計算
   // name枠→そのメンバー+1、wild/gen/group枠→対象からランダムに選んで+1
@@ -1602,14 +1657,14 @@ async function startCpuGame() {
 
   cpuTable = SakuraHandEngine.createTable({
     playerNames: [myUsername, "CPU 1", "CPU 2", "CPU 3"],
-    customHandsPool: playerHands,
+    customHandsPool: [...playerHands, ...cpuAutoHands],
     startingChips: CPU_STARTING_CHIPS,
     deckPool: cpuDeckPool,
     oshimenCounts,
     onChange: renderFromCpuTable,
     isBot: seat => seat !== YOUR_SEAT,
     onBotTurn: seat => setTimeoutSafe(() => cpuDecide(seat), 700 + Math.random() * 500),
-    autoAdvanceMs: 12800
+    autoAdvanceMs: 5500
   });
 
   showOnly(dom.gameScreen);
@@ -1827,8 +1882,6 @@ function handleWsMessage(msg) {
     onlineRoomId = msg.roomId;
     if (!dom.gameScreen.classList.contains("active")) {
       dom.cpuTopbar.style.display = "none";
-      dom.pauseBtn.style.display = "none";
-      dom.restartBtn.style.display = "none";
       dom.cashOutBtn.style.display = "none";
       dom.leaveGameBtn.style.display = "inline-block";
       dom.onlineTimerNotice.style.display = "block";
@@ -1914,7 +1967,7 @@ function buildViewModelFromLocalTable(table) {
     isYourTurn: table.turnSeat === YOUR_SEAT,
     callAmount: table.callAmountFor(YOUR_SEAT),
     currentBetLevel: table.currentBetLevel,
-    controlsEnabled: !cpuPaused && table.handPhase === "betting",
+    controlsEnabled: table.handPhase === "betting",
     maxChips: you.chips,
     handPhase: table.handPhase,
     lastResult: table.lastResult,
@@ -1993,6 +2046,7 @@ function renderGenericTable(vm) {
   dom.drawPanel.style.display = vm.isYourDrawTurn ? "block" : "none";
   dom.swapCard0Btn.disabled = !vm.isYourDrawTurn;
   dom.swapCard1Btn.disabled = !vm.isYourDrawTurn;
+  dom.swapBothBtn.disabled = !vm.isYourDrawTurn;
   dom.keepCardsBtn.disabled = !vm.isYourDrawTurn;
 
   // ベットコントロールは交換フェーズ中は非表示
@@ -2119,7 +2173,7 @@ function maybeShowCutIn(vm) {
 
   setTimeout(() => {
     if (dom.cutinLayer.contains(banner)) dom.cutinLayer.removeChild(banner);
-  }, 2500);
+  }, 4000);
 }
 
 function cardHTML(card, reveal) {

@@ -1010,6 +1010,19 @@
     }
 
     function startPreflop() {
+      /* フィーチャードメンバーのカードをデッキ先頭(次に引かれる位置=末尾)へ移動。
+         ホールカード配布・交換フェーズが終わった後に実行するため、ここで確定させる。 */
+      if (table.featuredMember) {
+        let fIdx = -1;
+        for (let i = table.deck.length - 1; i >= 0; i--) {
+          if (table.deck[i].name === table.featuredMember) { fIdx = i; break; }
+        }
+        if (fIdx >= 0 && fIdx !== table.deck.length - 1) {
+          const [fc] = table.deck.splice(fIdx, 1);
+          table.deck.push(fc);
+        }
+      }
+
       const activeOrder = seatsInOrderFrom(table.dealerIndex, p => !p.sittingOut);
       const sbSeat = activeOrder[0];
       const bbSeat = activeOrder.length > 1 ? activeOrder[1] : activeOrder[0];
@@ -1033,7 +1046,10 @@
       if (pendingIdx < 0 || table.turnSeat !== seat) return;
 
       const p = table.players[seat];
-      if ((cardIndex === 0 || cardIndex === 1) && p.holeCards[cardIndex]) {
+      if (cardIndex === "both") {
+        p.holeCards[0] = dealCard();
+        p.holeCards[1] = dealCard();
+      } else if ((cardIndex === 0 || cardIndex === 1) && p.holeCards[cardIndex]) {
         p.holeCards[cardIndex] = dealCard();
       }
 
@@ -1082,18 +1098,9 @@
         if (!p.sittingOut) p.holeCards = [dealCard(), dealCard()];
       });
 
-      /* フィーチャーメンバー選出: ランダムに1名を選び、フロップに確定登場させる。
-         デッキ残り札から最初に見つかったそのメンバーのカードをデッキ先頭(次に引かれる位置)へ移動。 */
+      /* フィーチャーメンバー選出: ランダムに1名を選ぶ。デッキへの配置は startPreflop で行う。 */
       const featuredIdx = Math.floor(Math.random() * deckPool.length);
       table.featuredMember = deckPool[featuredIdx].name;
-      let fIdx = -1;
-      for (let i = table.deck.length - 1; i >= 0; i--) {
-        if (table.deck[i].name === table.featuredMember) { fIdx = i; break; }
-      }
-      if (fIdx >= 0 && fIdx !== table.deck.length - 1) {
-        const [fc] = table.deck.splice(fIdx, 1);
-        table.deck.push(fc);
-      }
 
       /* カード交換フェーズ: 各プレイヤーが1枚まで交換できる */
       table.handPhase = "drawing";

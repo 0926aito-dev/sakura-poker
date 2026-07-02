@@ -872,7 +872,8 @@
         const prob = (matchedDef && typeof matchedDef.probability === "number") ? matchedDef.probability : 1;
         const genBonus = p.holeCards.concat(table.communityCards).reduce((s, c) => s + c.gen, 0);
         const probScore = (1 - prob) * 1e8 + genBonus;
-        return { i, name: p.name, evalResult, probScore };
+        const displayScore = Math.round((1 - prob) * 10000);
+        return { i, name: p.name, evalResult, probScore, displayScore };
       });
 
       const maxScore = Math.max(...evals.map(e => e.probScore));
@@ -899,7 +900,13 @@
           name: w.name,
           handName: w.evalResult.name,
           cards: w.evalResult.cards,
-          detail: w.evalResult.detail
+          detail: w.evalResult.detail,
+          score: w.displayScore
+        })),
+        allEvals: evals.map(e => ({
+          name: e.name,
+          handName: e.evalResult.name,
+          score: e.displayScore
         })),
         uncontested: false
       };
@@ -1120,6 +1127,16 @@
       /* フィーチャーメンバー選出: ランダムに1名を選ぶ。デッキへの配置は startPreflop で行う。 */
       const featuredIdx = Math.floor(Math.random() * deckPool.length);
       table.featuredMember = deckPool[featuredIdx].name;
+
+      /* カード交換中にフィーチャーカードが手元に来ないようデッキ底(index 0)に移動して保護する。
+         startPreflop でデッキ末尾(次にdealされる位置)へ戻す。 */
+      for (let i = table.deck.length - 1; i >= 1; i--) {
+        if (table.deck[i].name === table.featuredMember) {
+          const [fc] = table.deck.splice(i, 1);
+          table.deck.unshift(fc);
+          break;
+        }
+      }
 
       /* カード交換フェーズ: 各プレイヤーが1枚まで交換できる */
       table.handPhase = "drawing";

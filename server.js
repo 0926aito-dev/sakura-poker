@@ -21,9 +21,54 @@ const url = require("url");
 const crypto = require("crypto");
 const WebSocket = require("ws");
 const SakuraHandEngine = require("./hand-engine.js");
+const XLSX = require("xlsx");
 
 const PORT = process.env.PORT || 8787;
 const DB_PATH = path.join(__dirname, "db.json");
+const CPU_HANDS_XLSX = path.join(__dirname, "cpu_hands.xlsx");
+
+/* cpu_hands.xlsx を読み込んで per-CPU の役配列を返す。
+   ファイルがなければ null を返し、startCpuGame で自動生成にフォールバックする。
+   形式: [cpuIdx(0-2)] = [ { id, label, slots, poolType }, ... ] */
+function loadCpuHandsFromXlsx() {
+  if (!fs.existsSync(CPU_HANDS_XLSX)) return null;
+  try {
+    const wb = XLSX.readFile(CPU_HANDS_XLSX);
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    const result = [[], [], []]; // CPU1, CPU2, CPU3
+    for (let r = 2; r < rows.length; r++) { // 0=ヘッダー, 1=メモ
+      const row = rows[r];
+      const cpuNum = parseInt(row[0], 10);
+      if (cpuNum < 1 || cpuNum > 3) continue;
+      const label = String(row[1] || "").trim();
+      const poolType = String(row[2] || "active").trim() || "active";
+      const slots = [];
+      for (let s = 0; s < 5; s++) {
+        const type = String(row[3 + s * 2] || "").trim();
+        const value = String(row[4 + s * 2] || "").trim();
+        if (!type) break;
+        slots.push(type === "wild" ? { type: "wild" } : { type, value });
+      }
+      if (slots.length === 0) continue;
+      result[cpuNum - 1].push({
+        id: `_cpu${cpuNum}_r${r}`,
+        label: label || `CPU${cpuNum}の役`,
+        slots,
+        poolType
+      });
+    }
+    return result;
+  } catch (e) {
+    console.error("cpu_hands.xlsx 読み込みエラー:", e.message);
+    return null;
+  }
+}
+
+const cpuHandsFromXlsx = loadCpuHandsFromXlsx();
+if (cpuHandsFromXlsx) {
+  console.log("✅ cpu_hands.xlsx からCPU役を読み込みました");
+}
 const STARTING_POINTS = 1000;
 const CPU_STARTING_CHIPS = 500;
 const MAX_POINTS_PER_EARN = 2000; // 1回の対戦で持ち点に反映できる上限(不正な大量加算を防ぐための簡易な上限)
@@ -285,6 +330,10 @@ function sendJson(res, status, obj) {
 
 async function handleApi(req, res, pathname, query) {
   try {
+    if (pathname === "/api/cpu-hands" && req.method === "GET") {
+      return sendJson(res, 200, { hands: cpuHandsFromXlsx });
+    }
+
     if (pathname === "/api/register" && req.method === "POST") {
       const body = await readJsonBody(req);
       const { username, password } = body;

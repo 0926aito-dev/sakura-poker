@@ -483,13 +483,24 @@
   .pts-toast-body  { font-size: 13px; color: rgba(255,255,255,0.75); }
   .pts-toast-gain  { color: var(--gold); font-size: 30px; font-weight: bold; }
 
-  /* カード配布アニメーション */
+  /* カード配布アニメーション (手札) */
   @keyframes dealCardIn {
     from { transform: translate(-55vw, -25vh) rotate(-18deg) scale(0.7); opacity: 0; }
     to   { transform: none; opacity: 1; }
   }
   .card.dealing-0 { animation: dealCardIn 0.42s cubic-bezier(.22,.68,0,1.18) 0s    both; }
   .card.dealing-1 { animation: dealCardIn 0.42s cubic-bezier(.22,.68,0,1.18) 0.22s both; }
+
+  /* 共通カード配布アニメーション (上から落下) */
+  @keyframes dealCommIn {
+    from { transform: translateY(-40px) scale(0.75); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+  .card.dealing-comm-0 { animation: dealCommIn 0.32s ease-out 0.04s both; }
+  .card.dealing-comm-1 { animation: dealCommIn 0.32s ease-out 0.16s both; }
+  .card.dealing-comm-2 { animation: dealCommIn 0.32s ease-out 0.28s both; }
+  .card.dealing-comm-3 { animation: dealCommIn 0.32s ease-out 0.04s both; }
+  .card.dealing-comm-4 { animation: dealCommIn 0.32s ease-out 0.04s both; }
 
   /* デッキ確認モーダル */
   #deckModal {
@@ -568,6 +579,10 @@
   .cutin-banner .cutin-winner { font-size: 18px; font-weight: 900; color: white; }
   .cutin-banner .cutin-hand { font-size: 26px; font-weight: 1000; color: var(--gold); text-shadow: 0 0 14px rgba(255,216,107,0.8); }
   .cutin-banner .cutin-cards { font-size: 13px; color: rgba(255,255,255,0.92); }
+  .cutin-scores { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; width: 100%; }
+  .cutin-score-row { font-size: 11px; color: rgba(255,255,255,0.7); padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.25); }
+  .cutin-score-row b { color: var(--gold); }
+  .cutin-score-row.winner { background: rgba(255,216,107,0.15); color: white; }
 
   @keyframes cutinSweep {
     0%   { transform: translateX(-130vw) skewX(-6deg); opacity: 0; }
@@ -726,9 +741,17 @@
   .opp-tag.tag-disconn{ background: rgba(150,150,150,0.3); }
   .opp-cards-mini { display: flex; gap: 2px; margin-top: 3px; flex-wrap: wrap; }
   .card-back-mini {
-    width: 18px; height: 25px; border-radius: 3px;
-    background: linear-gradient(135deg, #7e3bdd, #ff91d9);
-    border: 1px solid rgba(255,255,255,0.22);
+    width: 33px; height: 45px; border-radius: 5px;
+    background: linear-gradient(145deg, #6a24cc 0%, #d63faa 100%);
+    border: 1.5px solid rgba(255,255,255,0.3);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+    position: relative; overflow: hidden; flex-shrink: 0;
+  }
+  .card-back-mini::after {
+    content: "✿";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: rgba(255,255,255,0.35);
   }
 
   /* テーブルセンター(場札 + ポット) */
@@ -1703,17 +1726,30 @@ async function startCpuGame() {
   dom.cpuGainPreview.textContent = "+0";
   lastRenderedHandPhase = null;
   _lastYourCardCount = 0;
+  _lastCommCount = 0;
 
   cpuDeckPool = SakuraHandEngine.DECKS[cpuDeckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS;
 
   // プレイヤーのオリジナル役(デッキ種別フィルタ済み)
   const playerHands = myHands.filter(h => cpuDeckPoolName === "all" || (h.poolType || "active") === "active");
 
-  // CPU3人それぞれにランダムなオリジナル役を自動生成(name1枠+wild枠、サイズ2〜5)
+  // CPU役: サーバーの cpu_hands.xlsx 設定を優先、なければ自動生成
   const poolType = cpuDeckPoolName === "all" ? "all" : "active";
+  let cpuSeatHands = [[], [], []];
+
+  try {
+    const cpuHandsRes = await apiCall("/api/cpu-hands", "GET");
+    if (cpuHandsRes.hands && Array.isArray(cpuHandsRes.hands)) {
+      cpuSeatHands = cpuHandsRes.hands.map(seatHands =>
+        (seatHands || []).filter(h => cpuDeckPoolName === "all" || (h.poolType || "active") === "active")
+      );
+    }
+  } catch (e) { /* xlsx未設定の場合は自動生成にフォールバック */ }
+
+  // xlsx に役が無い席は自動生成で補完
   const shuffledForCpu = SakuraHandEngine.shuffle([...cpuDeckPool]);
-  const cpuSeatHands = [[], [], []]; // CPU1,CPU2,CPU3 ごとの役
   for (let cpuIdx = 0; cpuIdx < 3; cpuIdx++) {
+    if (cpuSeatHands[cpuIdx].length > 0) continue;
     for (let size = 2; size <= 5; size++) {
       const member = shuffledForCpu[(cpuIdx * 4 + size) % shuffledForCpu.length];
       const slots = [{ type: "name", value: member.name }];
@@ -1723,14 +1759,15 @@ async function startCpuGame() {
       }
     }
   }
+
   // per-seat 手役: [プレイヤー, CPU1, CPU2, CPU3]
   const perSeatCustomHands = [playerHands, ...cpuSeatHands];
   const cpuAutoHands = cpuSeatHands.flat();
 
-  // オリジナル役のスロットからデッキブーストを計算
+  // プレイヤー・CPU全員の役スロットからデッキブーストを計算
   // name枠→そのメンバー+1、wild/gen/group枠→対象からランダムに選んで+1
   const oshimenCounts = {};
-  for (const hand of playerHands) {
+  for (const hand of [...playerHands, ...cpuAutoHands]) {
     for (const slot of (hand.slots || [])) {
       if (slot.type === "name") {
         oshimenCounts[slot.value] = (oshimenCounts[slot.value] || 0) + 1;
@@ -1854,6 +1891,7 @@ async function settleCpuPoints(table, won) {
 
 async function endCpuGame(table) {
   if (mode !== "cpu" || table !== cpuTable) return;
+  cpuTable = null; // 二重呼び出し防止
   const you = table.players[YOUR_SEAT];
   const won = !you.sittingOut;
   const gained = await settleCpuPoints(table, won);
@@ -1940,6 +1978,7 @@ function openOnlineLobby() {
   mode = "online";
   lastRenderedHandPhase = null;
   _lastYourCardCount = 0;
+  _lastCommCount = 0;
   dom.lobbyMessage.textContent = "";
   dom.lobbyOutside.style.display = "block";
   dom.lobbyInside.style.display = "none";
@@ -2079,7 +2118,8 @@ function buildViewModelFromLocalTable(table) {
       isYou: i === YOUR_SEAT,
       isTurn: table.turnSeat === i,
       isDealer: i === table.dealerIndex,
-      cards: (i === YOUR_SEAT || table.handPhase === "result" || table.handPhase === "gameover") ? p.holeCards : []
+      cards: (i === YOUR_SEAT || table.handPhase === "result" || table.handPhase === "gameover") ? p.holeCards : [],
+      cardCount: p.holeCards.length
     })),
     message: table.message,
     yourHandName: evalResult ? evalResult.name : null,
@@ -2249,12 +2289,21 @@ function maybeShowCutIn(vm) {
     : (result.winners[0].handName || "-");
   const usedCards = (!result.uncontested && result.winners[0].cards) || [];
 
+  // 全員のスコア一覧
+  const scoreRows = (!result.uncontested && result.allEvals)
+    ? result.allEvals.map(e => {
+        const isWinner = result.winners.some(w => w.name === e.name);
+        return `<span class="cutin-score-row${isWinner ? " winner" : ""}">${escapeHTML(e.name)}：${escapeHTML(e.handName)} <b>${e.score}pt</b></span>`;
+      }).join("")
+    : "";
+
   const banner = document.createElement("div");
   banner.className = "cutin-banner";
   banner.innerHTML = `
     <span class="cutin-winner">${escapeHTML(winnerNames)}</span>
     <span class="cutin-hand">${escapeHTML(handLabel)}</span>
     ${usedCards.length ? `<span class="cutin-cards">${usedCards.map(c => escapeHTML(c.name)).join(" / ")}</span>` : ""}
+    ${scoreRows ? `<div class="cutin-scores">${scoreRows}</div>` : ""}
   `;
 
   dom.cutinLayer.innerHTML = "";
@@ -2281,19 +2330,26 @@ function cardHTML(card, reveal) {
 }
 
 let _lastYourCardCount = 0;
+let _lastCommCount = 0;
 
 function renderCards(container, cards, reveal, featuredMember) {
   const isYourHand = container === dom.yourCards;
-  const incoming = (cards || []).length;
-  const animate = isYourHand && _lastYourCardCount === 0 && incoming > 0;
+  const isComm     = container === dom.communityCards;
+  const incoming   = (cards || []).length;
+
+  const animateHole = isYourHand && _lastYourCardCount === 0 && incoming > 0;
+  const firstNewCommIdx = isComm ? _lastCommCount : -1;
+
   if (isYourHand) _lastYourCardCount = incoming;
+  if (isComm)     _lastCommCount     = incoming;
 
   container.innerHTML = "";
   (cards || []).forEach((card, idx) => {
     const isFeatured = reveal && featuredMember && card.name === featuredMember;
     const div = document.createElement("div");
     let cls = (reveal ? "card" : "card hidden") + (reveal ? ` gen-${card.gen}` : "") + (isFeatured ? " featured-card" : "");
-    if (animate) cls += ` dealing-${idx}`;
+    if (animateHole && idx <= 1)       cls += ` dealing-${idx}`;
+    if (isComm && idx >= firstNewCommIdx) cls += ` dealing-comm-${idx}`;
     div.className = cls;
     div.innerHTML = `
       <div class="gen">${escapeHTML(card.gen)}期</div>

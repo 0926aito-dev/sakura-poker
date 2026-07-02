@@ -1252,9 +1252,11 @@ async function apiCall(pathname, method, body) {
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) {
+  // ログイン・登録エンドポイントの401はパスワード違いなので自動ログアウトしない
+  const isAuthEndpoint = pathname === "/api/login" || pathname === "/api/register";
+  if (res.status === 401 && !isAuthEndpoint && myToken) {
     // セッション切れ: CPU対戦中なら持ち点を反映してからログアウト
-    if (mode === "cpu" && cpuTable && myToken) {
+    if (mode === "cpu" && cpuTable) {
       try {
         const you = cpuTable.players[YOUR_SEAT];
         if (you) await fetch("/api/cashout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: myToken, chips: you.chips }) });

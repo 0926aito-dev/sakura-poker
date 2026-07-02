@@ -1344,7 +1344,7 @@ async function doLogout() {
 async function goToMenu() {
   dom.cutinLayer.innerHTML = "";
   try { await fetchMyProfile(); } catch (e) { /* 取得失敗時は直前のデータで表示を継続 */ }
-  dom.welcomeText.textContent = `${myUsername} さん、ようこそ！`;
+  if (dom.welcomeText) dom.welcomeText.textContent = `${myUsername} さん、ようこそ！`;
   renderHandRankingPreview();
   dom.menuPoints.textContent = myPoints;
   dom.menuRankTier.textContent = myRankTier;
@@ -1356,7 +1356,7 @@ function renderHandRankingPreview() {
   const pool = myHands.filter(h => cpuDeckPoolName === "all" || (h.poolType || "active") === "active");
   const built = SakuraHandEngine.buildHandDefs(pool, SakuraHandEngine.DECKS[cpuDeckPoolName]);
   const strongestFirst = [...built.HAND_NAMES].reverse();
-  dom.handRankingText.textContent = `役の強さ(あなたのオリジナル役を含む / ${cpuDeckPoolName === "all" ? "全メンバー" : "在籍メンバーのみ"})：${strongestFirst.join(" ＞ ")}`;
+  if (dom.handRankingText) dom.handRankingText.textContent = `役の強さ(あなたのオリジナル役を含む / ${cpuDeckPoolName === "all" ? "全メンバー" : "在籍メンバーのみ"})：${strongestFirst.join(" ＞ ")}`;
 }
 
 function openHandListScreen() {

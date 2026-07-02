@@ -1146,6 +1146,7 @@
         <div class="actions g-action-row">
           <button id="actionABtn" class="danger">ベット</button>
           <button id="actionBBtn" class="success">チェック</button>
+          <button id="actionCBtn" class="blue" style="display:none">レイズ</button>
         </div>
       </div>
 
@@ -1297,6 +1298,7 @@ const dom = {
   betLabel: $("betLabel"),
   actionABtn: $("actionABtn"),
   actionBBtn: $("actionBBtn"),
+  actionCBtn: $("actionCBtn"),
   leaveGameBtn: $("leaveGameBtn"),
   resumeBtn: $("resumeBtn"),
   againBtn: $("againBtn"),
@@ -1694,12 +1696,9 @@ function bindEvents() {
   dom.swapBothBtn.addEventListener("click", () => { playSound(500, "triangle", 0.10); dispatchDraw("both"); });
   dom.keepCardsBtn.addEventListener("click", () => { playSound(300, "triangle", 0.06); dispatchDraw(null); });
 
-  dom.actionABtn.addEventListener("click", () => {
-    dispatchAction(dom.actionABtn.dataset.action || "bet");
-  });
-  dom.actionBBtn.addEventListener("click", () => {
-    dispatchAction(dom.actionBBtn.dataset.action || "check");
-  });
+  dom.actionABtn.addEventListener("click", () => dispatchAction(dom.actionABtn.dataset.action || "bet"));
+  dom.actionBBtn.addEventListener("click", () => dispatchAction(dom.actionBBtn.dataset.action || "check"));
+  dom.actionCBtn.addEventListener("click", () => dispatchAction("raise"));
 
   dom.resumeBtn.addEventListener("click", togglePause);
   dom.cashOutBtn.addEventListener("click", leaveCpuGame);
@@ -2380,17 +2379,21 @@ function updateControls(vm) {
   const enabled = vm.controlsEnabled && vm.isYourTurn;
   const hasBet = vm.currentBetLevel > 0;
 
-  // ボタンA: bet=0→ベット / bet>0→フォールド
+  // ボタンA: ベット(bet=0) / フォールド(bet>0)
   dom.actionABtn.disabled = !enabled;
   dom.actionABtn.dataset.action = hasBet ? "fold" : "bet";
-  dom.actionABtn.textContent  = hasBet ? "フォールド" : "ベット";
-  dom.actionABtn.className    = hasBet ? "danger" : "";
+  dom.actionABtn.textContent    = hasBet ? "フォールド" : "ベット";
+  dom.actionABtn.className      = hasBet ? "danger" : "";
 
-  // ボタンB: bet=0→チェック / bet>0→レイズ
+  // ボタンB: チェック(bet=0) / コール(bet>0)
   dom.actionBBtn.disabled = !enabled;
-  dom.actionBBtn.dataset.action = hasBet ? "raise" : "check";
-  dom.actionBBtn.textContent  = hasBet ? `レイズ` : "チェック";
-  dom.actionBBtn.className    = hasBet ? "blue" : "success";
+  dom.actionBBtn.dataset.action = hasBet ? "check" : "check"; // engine の "check" がコール処理も担う
+  dom.actionBBtn.textContent    = hasBet ? `コール(${vm.callAmount})` : "チェック";
+  dom.actionBBtn.className      = "success";
+
+  // ボタンC: 非表示(bet=0) / レイズ(bet>0)
+  dom.actionCBtn.style.display = hasBet ? "" : "none";
+  dom.actionCBtn.disabled = !enabled;
 
   // スライダー: 上限=手持ち、レイズ時は下限=現在ベット額×2
   const maxChips = vm.maxChips || 10;

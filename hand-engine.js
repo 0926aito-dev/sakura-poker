@@ -754,6 +754,14 @@
 
     const built = buildHandDefs(customHandsPool, deckPool, oshimenCounts);
 
+    /* perSeatCustomHands: [seat0の役配列, seat1の役配列, ...]
+       指定された場合、各席は自分の役 + 共通役だけで評価される。
+       未指定の場合は全員が共通の HAND_DEFS で評価される(後方互換)。 */
+    const perSeatCustomHands = options.perSeatCustomHands || null;
+    const perSeatBuilt = perSeatCustomHands
+      ? perSeatCustomHands.map(sh => buildHandDefs(sh, deckPool, oshimenCounts))
+      : null;
+
     const table = {
       players: names.map(name => ({
         name,
@@ -783,7 +791,8 @@
       deckPool,
       oshimenCounts,
       HAND_DEFS: built.HAND_DEFS,
-      HAND_NAMES: built.HAND_NAMES
+      HAND_NAMES: built.HAND_NAMES,
+      perSeatBuilt  // null or per-seat built defs
     };
 
     function seatsInOrderFrom(startSeat, predicate) {
@@ -850,14 +859,24 @@
         .map((p, i) => ({ i, p }))
         .filter(({ p }) => !p.sittingOut && !p.folded);
 
-      const evals = contenders.map(({ i, p }) => ({
-        i,
-        name: p.name,
-        evalResult: evaluateBestHand([...p.holeCards, ...table.communityCards], table.HAND_DEFS, table.HAND_NAMES)
-      }));
+      /* 各席の HAND_DEFS を取得: per-seat指定があればそれを使い、なければ共通を使う */
+      function getDefsForSeat(seat) {
+        return table.perSeatBuilt ? table.perSeatBuilt[seat] : { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
+      }
 
-      const maxScore = Math.max(...evals.map(e => e.evalResult.score));
-      const winners = evals.filter(e => e.evalResult.score === maxScore);
+      const evals = contenders.map(({ i, p }) => {
+        const defs = getDefsForSeat(i);
+        const evalResult = evaluateBestHand([...p.holeCards, ...table.communityCards], defs.HAND_DEFS, defs.HAND_NAMES);
+        /* 確率が低い(レアな)役が勝ち。genBonusをタイブレーカーに使う。 */
+        const matchedDef = defs.HAND_DEFS[evalResult.rank];
+        const prob = (matchedDef && typeof matchedDef.probability === "number") ? matchedDef.probability : 1;
+        const genBonus = p.holeCards.concat(table.communityCards).reduce((s, c) => s + c.gen, 0);
+        const probScore = (1 - prob) * 1e8 + genBonus;
+        return { i, name: p.name, evalResult, probScore };
+      });
+
+      const maxScore = Math.max(...evals.map(e => e.probScore));
+      const winners = evals.filter(e => e.probScore >= maxScore - 0.5);
       const share = Math.floor(table.pot / winners.length);
       const remainder = table.pot - share * winners.length;
 

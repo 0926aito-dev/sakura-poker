@@ -1008,14 +1008,6 @@
       <div class="g-hand-status">
         <span class="hand-panel-title">あなたの役：</span>
         <span class="hand-panel-name" id="handRank">-</span>
-        <div class="hand-gauge" id="handGauge"></div>
-        <button id="toggleLiveProbBtn" type="button" class="ghost-btn">確率▾</button>
-      </div>
-
-      <!-- 確率パネル -->
-      <div class="live-prob-panel" id="liveProbPanel" style="display:none">
-        <div class="title">今後完成しうる役の確率(現在の手札・場札から計算)</div>
-        <div id="liveProbList"></div>
       </div>
 
       <!-- メッセージ -->
@@ -1174,10 +1166,6 @@ const dom = {
   yourCards: $("yourCards"),
   yourChipsBadge: $("yourChipsBadge"),
   handRank: $("handRank"),
-  handGauge: $("handGauge"),
-  liveProbPanel: $("liveProbPanel"),
-  liveProbList: $("liveProbList"),
-  toggleLiveProbBtn: $("toggleLiveProbBtn"),
   cutinLayer: $("cutinLayer"),
   message: $("message"),
   betAmount: $("betAmount"),
@@ -1486,8 +1474,15 @@ function renderAccountHandsList() {
    起動時の自動ログイン確認
 ========================================================= */
 async function init() {
-  showOnly(dom.titleScreen);
   bindEvents();
+  if (myToken) {
+    // トークンがある場合はタイトルを表示せず直接メニューへ
+    try {
+      await enterApp();
+      return;
+    } catch (e) { /* 失敗したらタイトル画面へ */ }
+  }
+  showOnly(dom.titleScreen);
 }
 
 /*
@@ -1583,11 +1578,6 @@ function bindEvents() {
 
   dom.resumeBtn.addEventListener("click", togglePause);
   dom.cashOutBtn.addEventListener("click", leaveCpuGame);
-  dom.toggleLiveProbBtn.addEventListener("click", () => {
-    liveProbExpanded = !liveProbExpanded;
-    dom.toggleLiveProbBtn.textContent = liveProbExpanded ? "役の確率▴" : "役の確率▾";
-    applyLiveProbVisibility();
-  });
   dom.leaveGameBtn.addEventListener("click", () => {
     sendWs({ type: "leaveRoom" });
     closeWs();
@@ -1611,7 +1601,7 @@ async function startCpuGame() {
   mode = "cpu";
   cpuPaused = false;
   dom.pauseLayer.classList.remove("show");
-  dom.cpuTopbar.style.display = "grid";
+  dom.cpuTopbar.style.display = "flex";
   dom.cashOutBtn.style.display = "inline-block";
   dom.leaveGameBtn.style.display = "none";
   dom.onlineTimerNotice.style.display = "none";
@@ -1625,18 +1615,21 @@ async function startCpuGame() {
 
   // CPU3人それぞれにランダムなオリジナル役を自動生成(name1枠+wild枠、サイズ2〜5)
   const poolType = cpuDeckPoolName === "all" ? "all" : "active";
-  const cpuAutoHands = [];
   const shuffledForCpu = SakuraHandEngine.shuffle([...cpuDeckPool]);
+  const cpuSeatHands = [[], [], []]; // CPU1,CPU2,CPU3 ごとの役
   for (let cpuIdx = 0; cpuIdx < 3; cpuIdx++) {
     for (let size = 2; size <= 5; size++) {
       const member = shuffledForCpu[(cpuIdx * 4 + size) % shuffledForCpu.length];
       const slots = [{ type: "name", value: member.name }];
       for (let i = 1; i < size; i++) slots.push({ type: "wild" });
       if (SakuraHandEngine.isValidSlotsForPool(slots, poolType)) {
-        cpuAutoHands.push({ id: `_cpu${cpuIdx + 1}_s${size}`, label: `CPU${cpuIdx + 1} ${member.name}(${size}枚)`, slots, poolType });
+        cpuSeatHands[cpuIdx].push({ id: `_cpu${cpuIdx + 1}_s${size}`, label: `${member.name}(${size}枚)`, slots, poolType });
       }
     }
   }
+  // per-seat 手役: [プレイヤー, CPU1, CPU2, CPU3]
+  const perSeatCustomHands = [playerHands, ...cpuSeatHands];
+  const cpuAutoHands = cpuSeatHands.flat();
 
   // オリジナル役のスロットからデッキブーストを計算
   // name枠→そのメンバー+1、wild/gen/group枠→対象からランダムに選んで+1
@@ -1660,6 +1653,7 @@ async function startCpuGame() {
   cpuTable = SakuraHandEngine.createTable({
     playerNames: [myUsername, "CPU 1", "CPU 2", "CPU 3"],
     customHandsPool: [...playerHands, ...cpuAutoHands],
+    perSeatCustomHands,
     startingChips: CPU_STARTING_CHIPS,
     deckPool: cpuDeckPool,
     oshimenCounts,
@@ -1936,8 +1930,10 @@ function renderLobbyRoom(msg) {
 ========================================================= */
 function buildViewModelFromLocalTable(table) {
   const you = table.players[YOUR_SEAT];
+  // プレイヤー自身の HAND_DEFS を使って評価(per-seat 対応)
+  const myDefs = table.perSeatBuilt ? table.perSeatBuilt[YOUR_SEAT] : { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
   const evalResult = (you.holeCards.length + table.communityCards.length >= 5)
-    ? SakuraHandEngine.evaluateBestHand([...you.holeCards, ...table.communityCards], table.HAND_DEFS, table.HAND_NAMES)
+    ? SakuraHandEngine.evaluateBestHand([...you.holeCards, ...table.communityCards], myDefs.HAND_DEFS, myDefs.HAND_NAMES)
     : null;
 
   const PHASE_LABELS = ["プリフロップ", "フロップ", "ターン", "リバー"];
@@ -2102,43 +2098,12 @@ function renderGenericTable(vm) {
   }
 
   dom.handRank.textContent = vm.yourHandName || "-";
-  renderHandGauge(dom.handGauge, vm.yourHandRank, vm.handNamesCount);
-
-  renderLiveProbabilities(vm);
   maybeShowCutIn(vm);
 
   setMessage(vm.message);
   updateControls(vm);
 }
 
-/* 現在のターン以降に完成しうる役の確率(#2) */
-let liveProbExpanded = false;
-let lastLiveProbCandidates = [];
-
-function renderLiveProbabilities(vm) {
-  lastLiveProbCandidates = [];
-
-  if (vm.yourHoleCards && vm.yourHoleCards.length && vm.deckPool && vm.handDefs && vm.handDefs.length && vm.handPhase === "betting") {
-    const live = SakuraHandEngine.calcLiveHandProbabilities(vm.yourHoleCards, vm.communityCards, vm.deckPool, vm.handDefs, vm.oshimenCounts);
-    lastLiveProbCandidates = live
-      .filter(h => h.liveProbability > 0 && h.liveProbability < 0.999)
-      .sort((a, b) => a.liveProbability - b.liveProbability)
-      .slice(0, 4);
-  }
-
-  dom.toggleLiveProbBtn.style.display = lastLiveProbCandidates.length ? "inline-block" : "none";
-  applyLiveProbVisibility();
-}
-
-function applyLiveProbVisibility() {
-  const show = liveProbExpanded && lastLiveProbCandidates.length > 0;
-  dom.liveProbPanel.style.display = show ? "block" : "none";
-  if (!show) return;
-
-  dom.liveProbList.innerHTML = lastLiveProbCandidates
-    .map(h => `<div class="live-prob-row"><span>${escapeHTML(h.label)}</span><b>${(h.liveProbability * 100).toFixed(1)}%</b></div>`)
-    .join("");
-}
 
 /* ショーダウン時、勝者の役を横カットインで表示する(#6) */
 function maybeShowCutIn(vm) {
@@ -2205,16 +2170,6 @@ function renderCards(container, cards, reveal, featuredMember) {
       <div class="flower">✿</div>
     `;
     container.appendChild(div);
-  }
-}
-
-function renderHandGauge(container, rank, total) {
-  container.innerHTML = "";
-  if (rank == null) return;
-  for (let i = 0; i < total; i++) {
-    const seg = document.createElement("div");
-    seg.className = i <= rank ? "hand-gauge-seg filled" : "hand-gauge-seg";
-    container.appendChild(seg);
   }
 }
 

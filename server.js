@@ -507,7 +507,8 @@ function safeEvaluateForViewer(room, viewerSeat) {
   const table = room.table;
   const p = table.players[viewerSeat];
   if (!p || p.holeCards.length + table.communityCards.length < 5) return null;
-  return SakuraHandEngine.evaluateBestHand([...p.holeCards, ...table.communityCards], table.HAND_DEFS, table.HAND_NAMES);
+  const defs = (table.perSeatBuilt && table.perSeatBuilt[viewerSeat]) || { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
+  return SakuraHandEngine.evaluateBestHand([...p.holeCards, ...table.communityCards], defs.HAND_DEFS, defs.HAND_NAMES);
 }
 
 function buildStateFor(room, viewerSeat) {
@@ -719,9 +720,15 @@ function startGameForWs(ws) {
     }
   }
 
+  // 各プレイヤー自身のオリジナル役のみで役判定するためのper-seat配列
+  const perSeatCustomHands = room.usernames.map(u =>
+    getUserHands(u).filter(h => room.deckPoolName === "all" || (h.poolType || "active") === "active")
+  );
+
   room.table = SakuraHandEngine.createTable({
     playerNames: room.usernames.slice(),
     customHandsPool,
+    perSeatCustomHands,
     deckPool,
     oshimenCounts,
     onChange: () => {

@@ -780,18 +780,20 @@
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     padding: 6px 10px; border-radius: 10px;
     background: linear-gradient(135deg, rgba(184,108,255,0.2), rgba(255,143,216,0.14));
-    border: 1px solid rgba(255,255,255,0.24);
+    border: 1.5px solid rgba(255,255,255,0.24);
     flex-shrink: 0;
+    transition: border-color 0.2s;
   }
+  @keyframes framePulse {
+    0%   { border-color: rgba(255,255,255,0.24); box-shadow: none; }
+    25%  { border-color: var(--gold); box-shadow: 0 0 10px rgba(255,216,107,0.6); }
+    75%  { border-color: var(--gold); box-shadow: 0 0 10px rgba(255,216,107,0.6); }
+    100% { border-color: rgba(255,255,255,0.24); box-shadow: none; }
+  }
+  .g-hand-status.flash { animation: framePulse 1.2s ease forwards; }
 
-  /* テーブルメッセージ */
-  .table-message {
-    padding: 5px 9px; border-radius: 8px;
-    background: rgba(0,0,0,0.38);
-    font-size: 11px; line-height: 1.45;
-    color: rgba(255,255,255,0.88);
-    flex-shrink: 0;
-  }
+  /* テーブルメッセージは非表示(フレームパルスに置き換え) */
+  .table-message { display: none; }
 
   /* カード交換パネル */
   .g-draw-panel {
@@ -812,8 +814,13 @@
     border: 2px solid rgba(100,190,255,0.38);
     flex-shrink: 0;
   }
-  .player-left { flex-shrink: 0; text-align: center; }
-  .player-chips-badge { font-size: 12px; font-weight: 900; color: var(--gold); white-space: nowrap; }
+  .player-left { flex-shrink: 0; display: flex; flex-direction: column; gap: 3px; }
+  .player-chips-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .player-chips-val  { font-size: 13px; font-weight: 900; color: var(--gold); white-space: nowrap; }
+  .player-allin-badge{ background: var(--gold); color: #1a1a2e; font-size: 9px; font-weight: 900; border-radius: 4px; padding: 1px 5px; display: none; }
+  .player-allin-badge.show { display: inline-block; }
+  .player-bet-val    { font-size: 11px; color: rgba(255,255,255,0.7); white-space: nowrap; display: none; }
+  .player-bet-val.show { display: inline-block; }
   .player-hole-cards { display: flex; gap: 6px; flex: 1; justify-content: center; }
 
   /* ベットコントロール */
@@ -826,8 +833,8 @@
   .g-bet-slider-row input { flex: 1; }
   .g-bet-slider-row b { color: var(--gold); font-size: 15px; }
   .g-bet-unit { font-size: 10px; color: rgba(255,255,255,0.6); flex-shrink: 0; }
-  .g-action-row { margin-top: 0; gap: 5px; }
-  .g-action-row button { flex: 1; padding: 10px 4px; font-size: 12px; min-width: 0; }
+  .g-action-row { margin-top: 0; gap: 8px; }
+  .g-action-row button { flex: 1; padding: 12px 4px; font-size: 14px; font-weight: bold; min-width: 0; border-radius: 12px; }
 
   /* メタアクション */
   .meta-actions { gap: 5px; margin-top: 3px; }
@@ -1120,7 +1127,11 @@
       <!-- プレイヤーエリア(手札) -->
       <div class="player-area">
         <div class="player-left">
-          <div id="yourChipsBadge" class="player-chips-badge">0pt</div>
+          <div class="player-chips-row">
+            <span class="player-chips-val" id="yourChipsVal">0pt</span>
+            <span class="player-allin-badge" id="yourAllinBadge">ALLIN</span>
+            <span class="player-bet-val" id="yourBetVal"></span>
+          </div>
         </div>
         <div id="yourCards" class="player-hole-cards"></div>
       </div>
@@ -1129,14 +1140,12 @@
       <div id="bettingControls">
         <div class="g-bet-slider-row">
           <span class="g-bet-label">ベット額</span>
-          <input id="betAmount" type="range" min="10" max="300" step="10" value="50" />
+          <input id="betAmount" type="range" min="10" max="500" step="10" value="50" />
           <b id="betLabel">50</b><span class="g-bet-unit">pt</span>
         </div>
         <div class="actions g-action-row">
-          <button id="foldBtn" class="danger">フォールド</button>
-          <button id="checkBtn" class="success">チェック / コール</button>
-          <button id="betBtn">ベット</button>
-          <button id="raiseBtn" class="blue">レイズ</button>
+          <button id="actionABtn" class="danger">ベット</button>
+          <button id="actionBBtn" class="success">チェック</button>
         </div>
       </div>
 
@@ -1278,16 +1287,16 @@ const dom = {
   potLabel: $("potLabel"),
   opponentsStrip: $("opponentsStrip"),
   yourCards: $("yourCards"),
-  yourChipsBadge: $("yourChipsBadge"),
+  yourChipsVal: $("yourChipsVal"),
+  yourAllinBadge: $("yourAllinBadge"),
+  yourBetVal: $("yourBetVal"),
   handRank: $("handRank"),
   cutinLayer: $("cutinLayer"),
   message: $("message"),
   betAmount: $("betAmount"),
   betLabel: $("betLabel"),
-  checkBtn: $("checkBtn"),
-  betBtn: $("betBtn"),
-  raiseBtn: $("raiseBtn"),
-  foldBtn: $("foldBtn"),
+  actionABtn: $("actionABtn"),
+  actionBBtn: $("actionBBtn"),
   leaveGameBtn: $("leaveGameBtn"),
   resumeBtn: $("resumeBtn"),
   againBtn: $("againBtn"),
@@ -1685,10 +1694,12 @@ function bindEvents() {
   dom.swapBothBtn.addEventListener("click", () => { playSound(500, "triangle", 0.10); dispatchDraw("both"); });
   dom.keepCardsBtn.addEventListener("click", () => { playSound(300, "triangle", 0.06); dispatchDraw(null); });
 
-  dom.checkBtn.addEventListener("click", () => dispatchAction("check"));
-  dom.betBtn.addEventListener("click", () => dispatchAction("bet"));
-  dom.raiseBtn.addEventListener("click", () => dispatchAction("raise"));
-  dom.foldBtn.addEventListener("click", () => dispatchAction("fold"));
+  dom.actionABtn.addEventListener("click", () => {
+    dispatchAction(dom.actionABtn.dataset.action || "bet");
+  });
+  dom.actionBBtn.addEventListener("click", () => {
+    dispatchAction(dom.actionBBtn.dataset.action || "check");
+  });
 
   dom.resumeBtn.addEventListener("click", togglePause);
   dom.cashOutBtn.addEventListener("click", leaveCpuGame);
@@ -2256,7 +2267,11 @@ function renderGenericTable(vm) {
   });
 
   if (you) {
-    dom.yourChipsBadge.textContent = `${you.chips}pt${you.bet > 0 ? ` (ベット:${you.bet})` : ""}`;
+    const showChips = vm.handPhase !== "gameover";
+    dom.yourChipsVal.textContent = showChips ? `${you.chips}pt` : "";
+    dom.yourAllinBadge.classList.toggle("show", !!you.allIn);
+    dom.yourBetVal.classList.toggle("show", showChips && you.bet > 0);
+    if (showChips && you.bet > 0) dom.yourBetVal.textContent = `ベット:${you.bet}pt`;
     renderCards(dom.yourCards, you.cards, true, vm.featuredMember);
   }
 
@@ -2363,15 +2378,28 @@ function renderCards(container, cards, reveal, featuredMember) {
 
 function updateControls(vm) {
   const enabled = vm.controlsEnabled && vm.isYourTurn;
-  dom.checkBtn.disabled = !enabled;
-  dom.betBtn.disabled = !enabled || vm.currentBetLevel > 0;
-  dom.raiseBtn.disabled = !enabled || vm.currentBetLevel <= 0;
-  dom.foldBtn.disabled = !enabled;
-  dom.checkBtn.textContent = vm.callAmount > 0 ? `コール(${vm.callAmount})` : "チェック";
+  const hasBet = vm.currentBetLevel > 0;
 
-  const max = Math.max(10, Math.min(300, vm.maxChips || 10));
-  dom.betAmount.max = String(max);
-  if (Number(dom.betAmount.value) > max) dom.betAmount.value = String(max);
+  // ボタンA: bet=0→ベット / bet>0→フォールド
+  dom.actionABtn.disabled = !enabled;
+  dom.actionABtn.dataset.action = hasBet ? "fold" : "bet";
+  dom.actionABtn.textContent  = hasBet ? "フォールド" : "ベット";
+  dom.actionABtn.className    = hasBet ? "danger" : "";
+
+  // ボタンB: bet=0→チェック / bet>0→レイズ
+  dom.actionBBtn.disabled = !enabled;
+  dom.actionBBtn.dataset.action = hasBet ? "raise" : "check";
+  dom.actionBBtn.textContent  = hasBet ? `レイズ` : "チェック";
+  dom.actionBBtn.className    = hasBet ? "blue" : "success";
+
+  // スライダー: 上限=手持ち、レイズ時は下限=現在ベット額×2
+  const maxChips = vm.maxChips || 10;
+  const minBet   = hasBet ? Math.min(vm.currentBetLevel * 2, maxChips) : 10;
+  dom.betAmount.min  = String(minBet);
+  dom.betAmount.max  = String(Math.max(minBet, maxChips));
+  dom.betAmount.step = "10";
+  if (Number(dom.betAmount.value) < minBet) dom.betAmount.value = String(minBet);
+  if (Number(dom.betAmount.value) > maxChips) dom.betAmount.value = String(maxChips);
   dom.betLabel.textContent = dom.betAmount.value;
 }
 
@@ -2388,8 +2416,16 @@ function dispatchAction(action) {
   playSound(460, "triangle", 0.08);
 }
 
+let _flashTimer = null;
 function setMessage(text) {
-  dom.message.innerHTML = text || "";
+  if (!text) return;
+  const el = document.querySelector(".g-hand-status");
+  if (!el) return;
+  el.classList.remove("flash");
+  void el.offsetWidth; // reflow to restart animation
+  el.classList.add("flash");
+  if (_flashTimer) clearTimeout(_flashTimer);
+  _flashTimer = setTimeout(() => el.classList.remove("flash"), 1200);
 }
 
 /* =========================================================

@@ -1025,7 +1025,9 @@
       if (type === "raise") {
         if (table.currentBetLevel <= 0) return;
         table.pendingActors.shift();
-        const extra = Math.max(10, Math.floor(Number(amount) || 0));
+        // 最低レイズ額 = 現在ベット額(ポーカー標準: 直前ベットの倍以上になる)
+        const minExtra = table.currentBetLevel;
+        const extra = Math.max(minExtra, Math.floor(Number(amount) || 0));
         const paid = commitBet(p, callAmount + extra);
         table.currentBetLevel = p.betThisRound;
         table.message = `${p.name} が ${p.betThisRound}pt にレイズしました。(${paid}pt支払い)`;

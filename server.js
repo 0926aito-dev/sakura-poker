@@ -26,6 +26,7 @@ const XLSX = require("xlsx");
 const PORT = process.env.PORT || 8787;
 const DB_PATH = path.join(__dirname, "db.json");
 const CPU_HANDS_XLSX = path.join(__dirname, "cpu_hands.xlsx");
+const SAKURA_ORIGINAL_XLSX = path.join(__dirname, "櫻坂オリジナル役用.xlsx");
 
 /* cpu_hands.xlsx を読み込んで per-CPU の役配列を返す。
    ファイルがなければ null を返し、startCpuGame で自動生成にフォールバックする。
@@ -68,6 +69,46 @@ function loadCpuHandsFromXlsx() {
 const cpuHandsFromXlsx = loadCpuHandsFromXlsx();
 if (cpuHandsFromXlsx) {
   console.log("✅ cpu_hands.xlsx からCPU役を読み込みました");
+}
+
+/* 櫻坂オリジナル役用.xlsx を読み込み、全役の配列を返す。
+   ヘッダー: 役名, メンバー1〜6
+   各行を { id, label, slots:[{type:"name",value:...},...], poolType } に変換する。 */
+function loadSakuraOriginalHands() {
+  if (!fs.existsSync(SAKURA_ORIGINAL_XLSX)) return [];
+  try {
+    const { MEMBERS: ALL_MEMBERS, ACTIVE_MEMBERS } = SakuraHandEngine;
+    const activeNames = new Set((ACTIVE_MEMBERS || []).map(m => m.name));
+    const allNames = new Set((ALL_MEMBERS || []).map(m => m.name));
+    const wb = XLSX.readFile(SAKURA_ORIGINAL_XLSX);
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    const hands = [];
+    for (let r = 1; r < rows.length; r++) { // row 0 = header
+      const row = rows[r];
+      const label = String(row[0] || "").trim();
+      if (!label) continue;
+      const slots = [];
+      for (let c = 1; c <= 6; c++) {
+        const name = String(row[c] || "").trim();
+        if (!name) continue;
+        if (!allNames.has(name)) continue; // skip unknown names
+        slots.push({ type: "name", value: name });
+      }
+      if (slots.length < 2) continue;
+      const poolType = slots.every(s => activeNames.has(s.value)) ? "active" : "all";
+      hands.push({ id: `_sakura_r${r}`, label, slots, poolType });
+    }
+    return hands;
+  } catch (e) {
+    console.error("櫻坂オリジナル役用.xlsx 読み込みエラー:", e.message);
+    return [];
+  }
+}
+
+const sakuraOriginalHands = loadSakuraOriginalHands();
+if (sakuraOriginalHands.length > 0) {
+  console.log(`✅ 櫻坂オリジナル役用.xlsx から ${sakuraOriginalHands.length} 役を読み込みました`);
 }
 const STARTING_POINTS = 1000;
 const CPU_STARTING_CHIPS = 500;
@@ -331,6 +372,13 @@ function sendJson(res, status, obj) {
 async function handleApi(req, res, pathname, query) {
   try {
     if (pathname === "/api/cpu-hands" && req.method === "GET") {
+      if (sakuraOriginalHands.length > 0) {
+        // shuffle and distribute sakura original hands evenly across 3 CPUs
+        const shuffled = [...sakuraOriginalHands].sort(() => Math.random() - 0.5);
+        const perCpu = [[], [], []];
+        shuffled.forEach((h, i) => perCpu[i % 3].push({ ...h, id: `${h.id}_cpu${i % 3 + 1}` }));
+        return sendJson(res, 200, { hands: perCpu });
+      }
       return sendJson(res, 200, { hands: cpuHandsFromXlsx });
     }
 
@@ -500,6 +548,12 @@ const server = http.createServer((req, res) => {
 
   if (parsed.pathname.startsWith("/api/")) {
     handleApi(req, res, parsed.pathname, parsed.query);
+    return;
+  }
+
+  if (parsed.pathname === "/favicon.ico") {
+    res.writeHead(204);
+    res.end();
     return;
   }
 

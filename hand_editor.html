@@ -235,6 +235,7 @@
           <button data-size="3" class="size-btn">3枚</button>
           <button data-size="4" class="size-btn">4枚</button>
           <button data-size="5" class="size-btn">5枚</button>
+          <button data-size="6" class="size-btn">6枚</button>
         </div>
       </div>
 
@@ -259,6 +260,11 @@
           </select>
           <select id="wildcardValueSelect"></select>
           <button id="addWildcardBtn" class="blue">この枠を追加</button>
+        </div>
+        <div class="actions" style="margin-top:6px;">
+          <span style="font-size:0.82em;color:var(--silver);margin-right:4px;">複数期プリセット:</span>
+          <button id="addGenSet123Btn" class="blue" style="font-size:0.82em;padding:4px 8px;">1/2/3期の誰か</button>
+          <button id="addGenSet234Btn" class="blue" style="font-size:0.82em;padding:4px 8px;">2/3/4期の誰か</button>
         </div>
       </div>
 
@@ -332,6 +338,8 @@ const dom = {
   wildcardValueSelect: $("wildcardValueSelect"),
   addWildcardBtn: $("addWildcardBtn"),
   addWildBtn: $("addWildBtn"),
+  addGenSet123Btn: $("addGenSet123Btn"),
+  addGenSet234Btn: $("addGenSet234Btn"),
   selectedSlotsList: $("selectedSlotsList"),
   memberGrid: $("memberGrid"),
   selectedCount: $("selectedCount"),
@@ -430,6 +438,8 @@ async function init() {
   dom.wildcardTypeSelect.addEventListener("change", populateWildcardValueSelect);
   dom.addWildcardBtn.addEventListener("click", addWildcardSlot);
   dom.addWildBtn.addEventListener("click", addWildSlot);
+  dom.addGenSet123Btn.addEventListener("click", () => addGenSetSlot([1, 2, 3]));
+  dom.addGenSet234Btn.addEventListener("click", () => addGenSetSlot([2, 3, 4]));
 
   populateWildcardValueSelect();
   renderSelectedSlots();
@@ -446,6 +456,22 @@ function populateWildcardValueSelect() {
   dom.wildcardValueSelect.innerHTML = values
     .map(v => `<option value="${escapeHTML(String(v))}">${type === "gen" ? `${escapeHTML(String(v))}期` : `グループ${escapeHTML(String(v))}`}</option>`)
     .join("");
+}
+
+function addGenSetSlot(gens) {
+  const existingAttr = selectedSlots.find(s => s.type === "gen" || s.type === "group");
+  if (existingAttr && existingAttr.type === "group") {
+    dom.editorMessage.textContent = "1つの役の中で「期」と「グループ」のワイルドカードは混在できません。";
+    return;
+  }
+  if (selectedSlots.length >= selectedSize) {
+    dom.editorMessage.textContent = `選択できるのは${selectedSize}枚までです。`;
+    return;
+  }
+  selectedSlots.push({ type: "gen", value: gens });
+  dom.editorMessage.textContent = "";
+  renderSelectedSlots();
+  updatePreview();
 }
 
 function addWildcardSlot() {

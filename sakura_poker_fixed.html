@@ -573,7 +573,7 @@
     box-shadow: 0 0 40px rgba(184,108,255,0.8), 0 10px 30px rgba(0,0,0,0.4);
     border: 2px solid rgba(255,255,255,0.85);
     transform: translateX(-130vw) skewX(-6deg);
-    animation: cutinSweep 2.4s ease forwards;
+    animation: cutinSweep 4.8s ease forwards;
     white-space: nowrap;
   }
   .cutin-banner .cutin-winner { font-size: 18px; font-weight: 900; color: white; }
@@ -778,11 +778,8 @@
   /* 役状態バー */
   .g-hand-status {
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-    padding: 6px 10px; border-radius: 10px;
-    background: linear-gradient(135deg, rgba(184,108,255,0.2), rgba(255,143,216,0.14));
-    border: 1.5px solid rgba(255,255,255,0.24);
+    padding: 4px 0;
     flex-shrink: 0;
-    transition: border-color 0.2s;
   }
   @keyframes framePulse {
     0%   { border-color: rgba(255,255,255,0.24); box-shadow: none; }
@@ -790,7 +787,14 @@
     75%  { border-color: var(--gold); box-shadow: 0 0 10px rgba(255,216,107,0.6); }
     100% { border-color: rgba(255,255,255,0.24); box-shadow: none; }
   }
-  .g-hand-status.flash { animation: framePulse 1.2s ease forwards; }
+  /* opp-panel flash when opponent acts */
+  @keyframes oppPanelPulse {
+    0%   { border-color: rgba(255,255,255,0.18); box-shadow: none; }
+    20%  { border-color: var(--gold); box-shadow: 0 0 14px rgba(255,216,107,0.7); }
+    70%  { border-color: var(--gold); box-shadow: 0 0 14px rgba(255,216,107,0.7); }
+    100% { border-color: rgba(255,255,255,0.18); box-shadow: none; }
+  }
+  .opp-panel.flash { animation: oppPanelPulse 1.2s ease forwards; }
 
   /* テーブルメッセージは非表示(フレームパルスに置き換え) */
   .table-message { display: none; }
@@ -1878,6 +1882,8 @@ function renderFromCpuTable(table) {
 
   if (table.handPhase === "gameover") {
     setTimeoutSafe(() => endCpuGame(table), 900);
+  } else if (you.chips === 0 && table.handPhase === "result") {
+    setTimeoutSafe(() => endCpuGame(table), 2000);
   }
 }
 
@@ -2240,11 +2246,20 @@ function renderGenericTable(vm) {
     if (seat.folded) cls += " folded";
     if (seat.sittingOut) cls += " sitting-out";
     panel.className = cls;
+    // Flash panel when this seat becomes the active player
+    const prevTurn = _prevSeatStates[seat.name];
+    if (seat.isTurn && !prevTurn) {
+      requestAnimationFrame(() => {
+        panel.classList.add("flash");
+        setTimeout(() => panel.classList.remove("flash"), 1200);
+      });
+    }
+    _prevSeatStates[seat.name] = !!seat.isTurn;
 
     const dealerBadge = seat.isDealer ? '<span class="dealer-badge">D</span>' : "";
 
+    const turnTag = (seat.isTurn && !seat.folded) ? '<span class="opp-tag tag-turn">手番</span>' : "";
     const tags = [];
-    if (seat.isTurn && !seat.folded) tags.push('<span class="opp-tag tag-turn">手番</span>');
     if (seat.folded) tags.push('<span class="opp-tag tag-fold">フォールド</span>');
     if (seat.allIn) tags.push('<span class="opp-tag tag-allin">ALL IN</span>');
     if (!seat.connected) tags.push('<span class="opp-tag tag-disconn">切断中</span>');
@@ -2257,9 +2272,9 @@ function renderGenericTable(vm) {
         : "";
 
     panel.innerHTML = `
-      <div class="opp-name-bar">${dealerBadge}<span class="opp-name">${escapeHTML(seat.name)}</span></div>
+      <div class="opp-name-bar">${dealerBadge}<span class="opp-name">${escapeHTML(seat.name)}</span>${turnTag}</div>
       <div class="opp-chips-row">${seat.chips}pt</div>
-      <div class="opp-tags">${tags.join("")}</div>
+      ${tags.length ? `<div class="opp-tags">${tags.join("")}</div>` : ""}
       ${revealedCardsHtml}
     `;
     dom.opponentsStrip.appendChild(panel);
@@ -2326,7 +2341,7 @@ function maybeShowCutIn(vm) {
 
   setTimeout(() => {
     if (dom.cutinLayer.contains(banner)) dom.cutinLayer.removeChild(banner);
-  }, 4000);
+  }, 8000);
 }
 
 function cardHTML(card, reveal) {
@@ -2345,6 +2360,7 @@ function cardHTML(card, reveal) {
 
 let _lastYourCardCount = 0;
 let _lastCommCount = 0;
+let _prevSeatStates = {}; // seat.name → last isTurn boolean
 
 function renderCards(container, cards, reveal, featuredMember) {
   const isYourHand = container === dom.yourCards;
@@ -2419,16 +2435,8 @@ function dispatchAction(action) {
   playSound(460, "triangle", 0.08);
 }
 
-let _flashTimer = null;
-function setMessage(text) {
-  if (!text) return;
-  const el = document.querySelector(".g-hand-status");
-  if (!el) return;
-  el.classList.remove("flash");
-  void el.offsetWidth; // reflow to restart animation
-  el.classList.add("flash");
-  if (_flashTimer) clearTimeout(_flashTimer);
-  _flashTimer = setTimeout(() => el.classList.remove("flash"), 1200);
+function setMessage(_text) {
+  // highlighting moved to opp-panel flash; g-hand-status no longer pulsed
 }
 
 /* =========================================================

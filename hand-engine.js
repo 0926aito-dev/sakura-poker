@@ -77,7 +77,7 @@
   ];
 
   const MIN_CUSTOM_SIZE = 2;
-  const MAX_CUSTOM_SIZE = 5;
+  const MAX_CUSTOM_SIZE = 6;
 
   function countBy(array, key) {
     return array.reduce((acc, item) => {
@@ -117,7 +117,10 @@
 
   function describeSlot(slot) {
     if (slot.type === "name") return slot.value;
-    if (slot.type === "gen") return `${slot.value}期の誰か`;
+    if (slot.type === "gen") {
+      if (Array.isArray(slot.value)) return slot.value.join("/") + "期の誰か";
+      return `${slot.value}期の誰か`;
+    }
     if (slot.type === "group") return `グループ${slot.value}の誰か`;
     if (slot.type === "wild") return "ワイルド(誰でも)";
     return "?";
@@ -141,9 +144,17 @@
         if (nameCounts[slot.value] > COPIES_PER_MEMBER) return false;
         if (!pool.some(m => m.name === slot.value)) return false;
         realSlotCount++;
-      } else if (slot.type === "gen" || slot.type === "group") {
-        if (!pool.some(m => m[slot.type] === slot.value)) return false;
-        attrTypesUsed.add(slot.type);
+      } else if (slot.type === "gen") {
+        if (Array.isArray(slot.value)) {
+          if (!slot.value.every(g => pool.some(m => m.gen === g))) return false;
+        } else {
+          if (!pool.some(m => m.gen === slot.value)) return false;
+        }
+        attrTypesUsed.add("gen");
+        realSlotCount++;
+      } else if (slot.type === "group") {
+        if (!pool.some(m => m.group === slot.value)) return false;
+        attrTypesUsed.add("group");
         realSlotCount++;
       } else if (slot.type === "wild") {
         // 無条件枠: 値の検証は不要
@@ -213,6 +224,7 @@
     const freeIndices = cards.map((c, i) => i).filter(i => !usedIdx.has(i));
 
     function attrMatches(card, slot) {
+      if (slot.type === "gen" && Array.isArray(slot.value)) return slot.value.includes(card.gen);
       return card[slot.type] === slot.value;
     }
 
@@ -339,7 +351,8 @@
 
     const copiesMap = buildCopiesMap(pool, oshimenCounts);
     const total = Object.values(copiesMap).reduce((s, n) => s + n, 0);
-    const totalCombos = comb(total, 5);
+    const handSize = slots.length;
+    const totalCombos = comb(total, handSize);
     if (totalCombos === 0) return 0;
 
     const realSlots = slots.filter(s => s.type !== "wild"); // wild枠は確率計算に関与しない
@@ -347,19 +360,33 @@
     const attrSlots = realSlots.filter(s => s.type !== "name");
     const attrType = attrSlots.length ? attrSlots[0].type : null;
 
+    // normalize attr key: array gen value → "1,2,3" string key
+    function attrKey(s) { return Array.isArray(s.value) ? s.value.join(",") : String(s.value); }
+
     const nameRequired = {};
     for (const s of nameSlots) nameRequired[s.value] = (nameRequired[s.value] || 0) + 1;
     const namedList = Object.keys(nameRequired);
 
     const wildcardRequired = {};
-    for (const s of attrSlots) wildcardRequired[s.value] = (wildcardRequired[s.value] || 0) + 1;
+    for (const s of attrSlots) { const k = attrKey(s); wildcardRequired[k] = (wildcardRequired[k] || 0) + 1; }
 
     const otherMembers = pool.filter(p => !namedList.includes(p.name));
     const otherGroupSizes = {};
     if (attrType) {
       for (const p of otherMembers) {
-        const v = p[attrType];
-        otherGroupSizes[v] = (otherGroupSizes[v] || 0) + copiesMap[p.name];
+        // match to genSet key if applicable, else use member's own attr value
+        let matched = false;
+        for (const s of attrSlots) {
+          if (s.type === "gen" && Array.isArray(s.value) && s.value.includes(p.gen)) {
+            const k = attrKey(s);
+            otherGroupSizes[k] = (otherGroupSizes[k] || 0) + copiesMap[p.name];
+            matched = true; break;
+          }
+        }
+        if (!matched) {
+          const v = String(p[attrType]);
+          otherGroupSizes[v] = (otherGroupSizes[v] || 0) + copiesMap[p.name];
+        }
       }
     }
     const otherAttrKeys = Object.keys(otherGroupSizes);
@@ -369,7 +396,14 @@
     if (attrType) {
       for (const n of namedList) {
         const member = pool.find(p => p.name === n);
-        namedAttrValue[n] = member ? member[attrType] : null;
+        if (!member) { namedAttrValue[n] = null; continue; }
+        let matchedKey = null;
+        for (const s of attrSlots) {
+          if (s.type === "gen" && Array.isArray(s.value) && s.value.includes(member.gen)) {
+            matchedKey = attrKey(s); break;
+          }
+        }
+        namedAttrValue[n] = matchedKey !== null ? matchedKey : (member ? String(member[attrType]) : null);
       }
     }
 
@@ -407,7 +441,7 @@
 
     function recurseNamed(idx, surplusByAttr, drawnFromNamed, ways) {
       if (idx === namedList.length) {
-        resolveOther(5 - drawnFromNamed, surplusByAttr, ways);
+        resolveOther(handSize - drawnFromNamed, surplusByAttr, ways);
         return;
       }
 
@@ -928,6 +962,9 @@
       } else if (table.phaseIndex === 3) {
         table.communityCards.push(dealCard());
         table.message = "リバー公開！";
+      } else if (table.phaseIndex === 4) {
+        table.communityCards.push(dealCard());
+        table.message = "6枚目公開！";
       } else {
         showdownAndAward();
         return;

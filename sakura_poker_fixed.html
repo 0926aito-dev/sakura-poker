@@ -458,6 +458,75 @@
   }
   .size-toggle button.active { background: linear-gradient(135deg, var(--green), #8af7cf); color: #103024; box-shadow: 0 6px 0 rgba(15,82,72,0.9), 0 12px 20px rgba(0,0,0,0.22); }
 
+  /* ポイントトースト */
+  #pointsToast {
+    position: fixed; inset: 0; z-index: 900;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .points-toast-box {
+    background: rgba(10,10,20,0.92);
+    border: 2px solid var(--gold);
+    border-radius: 18px;
+    padding: 26px 40px;
+    text-align: center;
+    animation: toastFadeInOut 3s ease forwards;
+  }
+  @keyframes toastFadeInOut {
+    0%   { opacity: 0; transform: scale(0.82); }
+    14%  { opacity: 1; transform: scale(1.03); }
+    20%  { opacity: 1; transform: scale(1); }
+    78%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.95); }
+  }
+  .pts-toast-title { font-size: 24px; font-weight: bold; margin-bottom: 6px; }
+  .pts-toast-body  { font-size: 13px; color: rgba(255,255,255,0.75); }
+  .pts-toast-gain  { color: var(--gold); font-size: 30px; font-weight: bold; }
+
+  /* カード配布アニメーション */
+  @keyframes dealCardIn {
+    from { transform: translate(-55vw, -25vh) rotate(-18deg) scale(0.7); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+  .card.dealing-0 { animation: dealCardIn 0.42s cubic-bezier(.22,.68,0,1.18) 0s    both; }
+  .card.dealing-1 { animation: dealCardIn 0.42s cubic-bezier(.22,.68,0,1.18) 0.22s both; }
+
+  /* デッキ確認モーダル */
+  #deckModal {
+    position: fixed; inset: 0; z-index: 800;
+    background: rgba(0,0,0,0.72);
+    display: none; align-items: center; justify-content: center;
+  }
+  #deckModal.open { display: flex; }
+  .deck-modal-box {
+    background: #1a1a2e;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 16px;
+    padding: 16px 18px;
+    width: 88vw; max-width: 360px;
+    max-height: 78vh; overflow-y: auto;
+  }
+  .deck-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .deck-modal-title  { font-weight: bold; font-size: 15px; }
+  .deck-modal-close  { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; line-height: 1; }
+  .deck-member-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-size: 12px;
+  }
+  .deck-member-row:last-child { border-bottom: none; }
+  .deck-member-name { flex: 1; }
+  .deck-member-gen  { color: rgba(255,255,255,0.45); font-size: 11px; width: 28px; text-align: center; }
+  .deck-member-count { color: var(--gold); font-weight: bold; width: 40px; text-align: right; }
+  .deck-total { margin-top: 8px; font-size: 11px; color: rgba(255,255,255,0.5); text-align: right; }
+  #deckViewBtn {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff; border-radius: 6px;
+    padding: 2px 8px; font-size: 11px; cursor: pointer;
+    white-space: nowrap;
+  }
+
   .live-prob-panel {
     padding: 12px 14px;
     border-radius: 16px;
@@ -980,6 +1049,7 @@
         </div>
         <span id="phaseLabel" class="phase-chip">待機中</span>
         <div class="g-topbar-right">
+          <button id="deckViewBtn">デッキ</button>
           <p id="onlineTimerNotice" class="online-timer-notice" style="display:none">⏱25秒で自動フォールド</p>
         </div>
       </div>
@@ -1077,6 +1147,21 @@
 
   <div id="cutinLayer" class="cutin-layer"></div>
 
+  <!-- ポイントトースト -->
+  <div id="pointsToast" style="display:none"></div>
+
+  <!-- デッキ確認モーダル -->
+  <div id="deckModal">
+    <div class="deck-modal-box">
+      <div class="deck-modal-header">
+        <span class="deck-modal-title">デッキ内容</span>
+        <button class="deck-modal-close" id="deckModalClose">✕</button>
+      </div>
+      <div id="deckModalBody"></div>
+      <div class="deck-total" id="deckModalTotal"></div>
+    </div>
+  </div>
+
 <script src="members-data.js"></script>
 <script src="hand-engine.js"></script>
 <script>
@@ -1159,6 +1244,12 @@ const dom = {
   cpuGainPreview: $("cpuGainPreview"),
   cashOutBtn: $("cashOutBtn"),
   onlineTimerNotice: $("onlineTimerNotice"),
+  pointsToast: $("pointsToast"),
+  deckViewBtn: $("deckViewBtn"),
+  deckModal: $("deckModal"),
+  deckModalClose: $("deckModalClose"),
+  deckModalBody: $("deckModalBody"),
+  deckModalTotal: $("deckModalTotal"),
   phaseLabel: $("phaseLabel"),
   communityCards: $("communityCards"),
   potLabel: $("potLabel"),
@@ -1587,6 +1678,10 @@ function bindEvents() {
   dom.titleBtn.addEventListener("click", () => { dom.pauseLayer.classList.remove("show"); goToMenu(); });
 
   dom.betAmount.addEventListener("input", () => { dom.betLabel.textContent = dom.betAmount.value; });
+
+  dom.deckViewBtn.addEventListener("click", openDeckModal);
+  dom.deckModalClose.addEventListener("click", closeDeckModal);
+  dom.deckModal.addEventListener("click", e => { if (e.target === dom.deckModal) closeDeckModal(); });
 }
 
 /* =========================================================
@@ -1607,6 +1702,7 @@ async function startCpuGame() {
   dom.onlineTimerNotice.style.display = "none";
   dom.cpuGainPreview.textContent = "+0";
   lastRenderedHandPhase = null;
+  _lastYourCardCount = 0;
 
   cpuDeckPool = SakuraHandEngine.DECKS[cpuDeckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS;
 
@@ -1761,32 +1857,58 @@ async function endCpuGame(table) {
   const you = table.players[YOUR_SEAT];
   const won = !you.sittingOut;
   const gained = await settleCpuPoints(table, won);
-  showOnly(dom.gameOverScreen);
-
-  if (won) {
-    dom.gameOverTitle.textContent = "YOU WIN!";
-    dom.gameOverText.textContent = `相手CPUを全員0ptにしました！持ち点が+${gained}されました(現在の持ち点：${myPoints}pt)`;
-    playSound(900, "triangle", 0.22);
-  } else {
-    dom.gameOverTitle.textContent = "GAME OVER";
-    dom.gameOverText.textContent = `持ち点(500pt)を使い切りました。持ち点への影響はありません(現在の持ち点：${myPoints}pt)`;
-    playSound(120, "sawtooth", 0.22);
-  }
+  if (won) playSound(900, "triangle", 0.22);
+  else      playSound(120, "sawtooth", 0.22);
+  showPointsToast(gained, won);
 }
 
 async function leaveCpuGame() {
-  if (mode !== "cpu" || !cpuTable) {
-    goToMenu();
-    return;
-  }
-
+  if (mode !== "cpu" || !cpuTable) { goToMenu(); return; }
   const table = cpuTable;
-  mode = null; // cpuTableに残るタイマー/ボット処理が描画に影響しないようにする
+  mode = null;
   cpuTable = null;
-
   const gained = await settleCpuPoints(table, false);
-  alert(`持ち点に+${gained}を反映しました(現在の持ち点：${myPoints}pt)`);
-  goToMenu();
+  showPointsToast(gained, false);
+}
+
+function showPointsToast(gained, won) {
+  const title = won ? "YOU WIN!" : "ゲーム終了";
+  const gainLine = gained > 0
+    ? `<div class="pts-toast-gain">+${gained} pt</div>`
+    : `<div style="font-size:14px;color:rgba(255,255,255,0.6)">獲得ポイントなし</div>`;
+  dom.pointsToast.innerHTML = `
+    <div class="points-toast-box">
+      <div class="pts-toast-title">${title}</div>
+      ${gainLine}
+      <div class="pts-toast-body">現在の持ち点：${myPoints} pt</div>
+    </div>`;
+  dom.pointsToast.style.display = "flex";
+  setTimeout(() => {
+    dom.pointsToast.style.display = "none";
+    goToMenu();
+  }, 3000);
+}
+
+function openDeckModal() {
+  const pool = (mode === "cpu" ? cpuDeckPool : null) || SakuraHandEngine.ACTIVE_MEMBERS;
+  const counts = (mode === "cpu" && cpuTable) ? (cpuTable.oshimenCounts || {}) : {};
+  const rows = pool
+    .map(m => ({ name: m.name, gen: m.gen, count: 1 + (counts[m.name] || 0) }))
+    .sort((a, b) => b.count - a.count || a.gen - b.gen || a.name.localeCompare(b.name));
+  const total = rows.reduce((s, r) => s + r.count, 0);
+
+  dom.deckModalBody.innerHTML = rows.map(r => `
+    <div class="deck-member-row">
+      <span class="deck-member-gen">${r.gen}期</span>
+      <span class="deck-member-name">${escapeHTML(r.name)}</span>
+      <span class="deck-member-count">${r.count}枚</span>
+    </div>`).join("");
+  dom.deckModalTotal.textContent = `合計 ${total} 枚`;
+  dom.deckModal.classList.add("open");
+}
+
+function closeDeckModal() {
+  dom.deckModal.classList.remove("open");
 }
 
 function togglePause() {
@@ -1817,6 +1939,7 @@ function setTimeoutSafe(callback, delay) {
 function openOnlineLobby() {
   mode = "online";
   lastRenderedHandPhase = null;
+  _lastYourCardCount = 0;
   dom.lobbyMessage.textContent = "";
   dom.lobbyOutside.style.display = "block";
   dom.lobbyInside.style.display = "none";
@@ -2157,12 +2280,21 @@ function cardHTML(card, reveal) {
   `;
 }
 
+let _lastYourCardCount = 0;
+
 function renderCards(container, cards, reveal, featuredMember) {
+  const isYourHand = container === dom.yourCards;
+  const incoming = (cards || []).length;
+  const animate = isYourHand && _lastYourCardCount === 0 && incoming > 0;
+  if (isYourHand) _lastYourCardCount = incoming;
+
   container.innerHTML = "";
-  for (const card of (cards || [])) {
+  (cards || []).forEach((card, idx) => {
     const isFeatured = reveal && featuredMember && card.name === featuredMember;
     const div = document.createElement("div");
-    div.className = (reveal ? "card" : "card hidden") + (reveal ? ` gen-${card.gen}` : "") + (isFeatured ? " featured-card" : "");
+    let cls = (reveal ? "card" : "card hidden") + (reveal ? ` gen-${card.gen}` : "") + (isFeatured ? " featured-card" : "");
+    if (animate) cls += ` dealing-${idx}`;
+    div.className = cls;
     div.innerHTML = `
       <div class="gen">${escapeHTML(card.gen)}期</div>
       <div class="name">${escapeHTML(card.name)}</div>
@@ -2170,7 +2302,7 @@ function renderCards(container, cards, reveal, featuredMember) {
       <div class="flower">✿</div>
     `;
     container.appendChild(div);
-  }
+  });
 }
 
 function updateControls(vm) {

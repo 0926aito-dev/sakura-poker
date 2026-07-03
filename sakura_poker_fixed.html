@@ -2116,6 +2116,8 @@ function buildViewModelFromLocalTable(table) {
 
   const PHASE_LABELS = ["プリフロップ", "フロップ", "ターン", "リバー"];
 
+  const isDevMode = myUsername === "Test";
+
   return {
     phaseLabel: table.handPhase === "drawing" ? "カード交換"
       : table.handPhase === "betting" ? PHASE_LABELS[table.phaseIndex]
@@ -2123,20 +2125,27 @@ function buildViewModelFromLocalTable(table) {
       : table.handPhase === "gameover" ? "終了" : "待機中",
     communityCards: table.communityCards,
     pot: table.pot,
-    seats: table.players.map((p, i) => ({
-      name: p.name,
-      chips: p.chips,
-      bet: p.betThisRound,
-      folded: p.folded,
-      sittingOut: p.sittingOut,
-      allIn: p.allIn,
-      connected: true,
-      isYou: i === YOUR_SEAT,
-      isTurn: table.turnSeat === i,
-      isDealer: i === table.dealerIndex,
-      cards: (i === YOUR_SEAT || table.handPhase === "result" || table.handPhase === "gameover") ? p.holeCards : [],
-      cardCount: p.holeCards.length
-    })),
+    seats: table.players.map((p, i) => {
+      const seatDefs = table.perSeatBuilt ? table.perSeatBuilt[i] : { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
+      const seatEval = (isDevMode && p.holeCards.length + table.communityCards.length >= 5)
+        ? SakuraHandEngine.evaluateBestHand([...p.holeCards, ...table.communityCards], seatDefs.HAND_DEFS, seatDefs.HAND_NAMES)
+        : null;
+      return {
+        name: p.name,
+        chips: p.chips,
+        bet: p.betThisRound,
+        folded: p.folded,
+        sittingOut: p.sittingOut,
+        allIn: p.allIn,
+        connected: true,
+        isYou: i === YOUR_SEAT,
+        isTurn: table.turnSeat === i,
+        isDealer: i === table.dealerIndex,
+        cards: (i === YOUR_SEAT || isDevMode || table.handPhase === "result" || table.handPhase === "gameover") ? p.holeCards : [],
+        cardCount: p.holeCards.length,
+        devHandName: seatEval ? seatEval.name : null
+      };
+    }),
     message: table.message,
     yourHandName: evalResult ? evalResult.name : null,
     yourHandRank: evalResult ? evalResult.rank : null,
@@ -2274,6 +2283,7 @@ function renderGenericTable(vm) {
     panel.innerHTML = `
       <div class="opp-name-bar">${dealerBadge}<span class="opp-name">${escapeHTML(seat.name)}</span>${turnTag}</div>
       <div class="opp-chips-row">${seat.chips}pt</div>
+      ${seat.devHandName ? `<div style="font-size:10px;color:rgba(255,216,107,0.85);margin-bottom:2px;">${escapeHTML(seat.devHandName)}</div>` : ""}
       ${tags.length ? `<div class="opp-tags">${tags.join("")}</div>` : ""}
       ${revealedCardsHtml}
     `;

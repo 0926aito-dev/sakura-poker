@@ -1781,10 +1781,10 @@ async function startCpuGame() {
   const perSeatCustomHands = [playerHands, ...cpuSeatHands];
   const cpuAutoHands = cpuSeatHands.flat();
 
-  // プレイヤー・CPU全員の役スロットからデッキブーストを計算
-  // name枠→そのメンバー+1、wild/gen/group枠→対象からランダムに選んで+1
+  // プレイヤー自身の役スロットだけからデッキブーストを計算
+  // CPU役は含めない→デッキを小さく保ち確率を適正に維持する
   const oshimenCounts = {};
-  for (const hand of [...playerHands, ...cpuAutoHands]) {
+  for (const hand of playerHands) {
     for (const slot of (hand.slots || [])) {
       if (slot.type === "name") {
         oshimenCounts[slot.value] = (oshimenCounts[slot.value] || 0) + 1;
@@ -2164,7 +2164,6 @@ function buildViewModelFromLocalTable(table) {
     handDefs: table.HAND_DEFS,
     oshimenCounts: table.oshimenCounts || {},
     featuredMember: table.featuredMember || null,
-    perSeatOshimen: table.perSeatOshimen || [],
     isYourDrawTurn: table.handPhase === "drawing" && table.turnSeat === YOUR_SEAT
   };
 }
@@ -2227,10 +2226,7 @@ function renderGenericTable(vm) {
   dom.potLabel.textContent = vm.pot;
 
   // フィーチャーメンバーバナー
-  const oshimenList = (vm.perSeatOshimen || []).filter(Boolean);
-  const showFeatured = oshimenList.length > 0 && vm.handPhase !== "waiting" && vm.handPhase !== "gameover";
-  dom.featuredBanner.style.display = showFeatured ? "flex" : "none";
-  if (showFeatured) dom.featuredMemberName.textContent = [...new Set(oshimenList)].join(" / ");
+  dom.featuredBanner.style.display = "none";
 
   // カード交換パネル
   dom.drawPanel.style.display = vm.isYourDrawTurn ? "block" : "none";

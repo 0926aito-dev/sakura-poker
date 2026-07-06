@@ -2111,10 +2111,10 @@ function renderLobbyRoom(msg) {
 ========================================================= */
 function buildViewModelFromLocalTable(table) {
   const you = table.players[YOUR_SEAT];
-  // プレイヤー自身の HAND_DEFS を使って評価(per-seat 対応)
-  const myDefs = table.perSeatBuilt ? table.perSeatBuilt[YOUR_SEAT] : { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
+  // 全員共通の役定義で評価(自分・他人のオリジナル役を区別しない)
+  const sharedDefs = { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
   const evalResult = (you.holeCards.length + table.communityCards.length >= 5)
-    ? SakuraHandEngine.evaluateBestHand([...you.holeCards, ...table.communityCards], myDefs.HAND_DEFS, myDefs.HAND_NAMES)
+    ? SakuraHandEngine.evaluateBestHand([...you.holeCards, ...table.communityCards], sharedDefs.HAND_DEFS, sharedDefs.HAND_NAMES)
     : null;
 
   const PHASE_LABELS = ["プリフロップ", "フロップ", "ターン", "リバー"];
@@ -2129,9 +2129,8 @@ function buildViewModelFromLocalTable(table) {
     communityCards: table.communityCards,
     pot: table.pot,
     seats: table.players.map((p, i) => {
-      const seatDefs = table.perSeatBuilt ? table.perSeatBuilt[i] : { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
       const seatEval = (isDevMode && p.holeCards.length + table.communityCards.length >= 5)
-        ? SakuraHandEngine.evaluateBestHand([...p.holeCards, ...table.communityCards], seatDefs.HAND_DEFS, seatDefs.HAND_NAMES)
+        ? SakuraHandEngine.evaluateBestHand([...p.holeCards, ...table.communityCards], sharedDefs.HAND_DEFS, sharedDefs.HAND_NAMES)
         : null;
       return {
         name: p.name,

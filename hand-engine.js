@@ -895,9 +895,9 @@
         .map((p, i) => ({ i, p }))
         .filter(({ p }) => !p.sittingOut && !p.folded);
 
-      /* 各席の HAND_DEFS を取得: per-seat指定があればそれを使い、なければ共通を使う */
-      function getDefsForSeat(seat) {
-        return table.perSeatBuilt ? table.perSeatBuilt[seat] : { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
+      /* 全席共通の役定義を使う: 自分・他人問わず全オリジナル役を判定対象にする */
+      function getDefsForSeat(_seat) {
+        return { HAND_DEFS: table.HAND_DEFS, HAND_NAMES: table.HAND_NAMES };
       }
 
       const evals = contenders.map(({ i, p }) => {

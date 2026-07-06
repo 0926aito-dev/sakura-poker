@@ -1346,6 +1346,7 @@ let mode = null; // "cpu" | "online"
 let cpuTable = null;
 let cpuPaused = false;
 let cpuDeckPoolName = "active";
+let devCpuSeatHands = [[], [], []]; // dev mode: CPU original hands per seat (index 0=CPU1)
 let cpuDeckPool = null;
 
 let ws = null;
@@ -1777,6 +1778,8 @@ async function startCpuGame() {
     }
   }
 
+  devCpuSeatHands = cpuSeatHands; // dev mode用に保持
+
   // per-seat 手役: [プレイヤー, CPU1, CPU2, CPU3]
   const perSeatCustomHands = [playerHands, ...cpuSeatHands];
   const cpuAutoHands = cpuSeatHands.flat();
@@ -2148,7 +2151,8 @@ function buildViewModelFromLocalTable(table) {
         isDealer: i === table.dealerIndex,
         cards: (i === YOUR_SEAT || isDevMode || table.handPhase === "result" || table.handPhase === "gameover") ? p.holeCards : [],
         cardCount: p.holeCards.length,
-        devHandName: seatEval ? seatEval.name : null
+        devHandName: seatEval ? seatEval.name : null,
+        devOriginalHands: (isDevMode && i !== YOUR_SEAT) ? (devCpuSeatHands[i - 1] || []) : null
       };
     }),
     message: table.message,
@@ -2283,10 +2287,24 @@ function renderGenericTable(vm) {
         ? `<div class="opp-cards-mini">${Array(seat.cardCount).fill('<div class="card-back-mini"></div>').join("")}</div>`
         : "";
 
+    const devHandsHtml = (seat.devOriginalHands && seat.devOriginalHands.length)
+      ? `<div style="font-size:9px;color:rgba(255,200,80,0.75);margin:2px 0;line-height:1.4;text-align:left;">`
+        + seat.devOriginalHands.map(h => {
+            const slots = (h.slots || []).map(s =>
+              s.type === "name" ? escapeHTML(s.value) :
+              s.type === "wild" ? "?" :
+              s.type === "gen" ? `${s.value}期` : "?"
+            ).join(" ");
+            return `<div>▸${escapeHTML(h.label)}[${slots}]</div>`;
+          }).join("")
+        + `</div>`
+      : "";
+
     panel.innerHTML = `
       <div class="opp-name-bar">${dealerBadge}<span class="opp-name">${escapeHTML(seat.name)}</span>${turnTag}</div>
       <div class="opp-chips-row">${seat.chips}pt</div>
       ${seat.devHandName ? `<div style="font-size:10px;color:rgba(255,216,107,0.85);margin-bottom:2px;">${escapeHTML(seat.devHandName)}</div>` : ""}
+      ${devHandsHtml}
       ${tags.length ? `<div class="opp-tags">${tags.join("")}</div>` : ""}
       ${revealedCardsHtml}
     `;

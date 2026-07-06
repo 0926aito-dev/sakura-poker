@@ -68,12 +68,10 @@
   }
 
   const BASE_HANDS = [
-    { id: "high", label: "ハイカード", type: "high" },
-    { id: "genPair", label: "同期ペア", type: "gen", size: 2 },
-    { id: "genTwoPair", label: "ダブル同期ペア", type: "genTwoPair" },
-    { id: "genThree", label: "同期3枚", type: "gen", size: 3 },
-    { id: "genFour", label: "同期4枚", type: "gen", size: 4 },
-    { id: "genFive", label: "同期5枚", type: "gen", size: 5 }
+    { id: "high",      label: "ハイカード",   type: "high" },
+    { id: "genFive2",  label: "2期同期5枚",  type: "gen", size: 5, genId: 2 },
+    { id: "genFive3",  label: "3期同期5枚",  type: "gen", size: 5, genId: 3 },
+    { id: "genFive4",  label: "4期同期5枚",  type: "gen", size: 5, genId: 4 },
   ];
 
   const MIN_CUSTOM_SIZE = 2;
@@ -256,11 +254,8 @@
     const genValues = Object.values(genCounts).sort((a, b) => b - a);
 
     if (handDef.type === "gen") {
+      if (handDef.genId != null) return (genCounts[handDef.genId] || 0) === handDef.size;
       return genValues[0] === handDef.size;
-    }
-
-    if (handDef.type === "genTwoPair") {
-      return genValues[0] === 2 && genValues[1] === 2;
     }
 
     return false;
@@ -293,7 +288,8 @@
     const copiesMap = buildCopiesMap(pool, oshimenCounts);
     const genBuckets = {};
     for (const m of pool) genBuckets[m.gen] = (genBuckets[m.gen] || 0) + copiesMap[m.name];
-    const genSizes = Object.values(genBuckets);
+    const genOrder = Object.keys(genBuckets).map(Number);
+    const genSizes = genOrder.map(g => genBuckets[g]);
     const total = Object.values(copiesMap).reduce((s, n) => s + n, 0);
     const totalCombos = comb(total, 5);
     if (totalCombos === 0) return 0;
@@ -301,9 +297,14 @@
     let favorable = 0;
 
     function matchesCondition(counts) {
-      const sorted = counts.filter(c => c > 0).sort((a, b) => b - a);
-      if (handDef.type === "gen") return sorted[0] === handDef.size;
-      if (handDef.type === "genTwoPair") return sorted[0] === 2 && sorted[1] === 2;
+      if (handDef.type === "gen") {
+        if (handDef.genId != null) {
+          const idx = genOrder.indexOf(handDef.genId);
+          return idx >= 0 && counts[idx] === handDef.size;
+        }
+        const sorted = counts.filter(c => c > 0).sort((a, b) => b - a);
+        return sorted[0] === handDef.size;
+      }
       return false;
     }
 
@@ -611,9 +612,14 @@
     const currentGenCounts = countBy(known, "gen");
 
     function matchesAtLeast(combinedCounts, handDef) {
-      const sorted = combinedCounts.filter(c => c > 0).sort((a, b) => b - a);
-      if (handDef.type === "gen") return sorted[0] >= handDef.size;
-      if (handDef.type === "genTwoPair") return sorted.filter(c => c >= 2).length >= 2;
+      if (handDef.type === "gen") {
+        if (handDef.genId != null) {
+          const idx = genKeys.indexOf(String(handDef.genId));
+          return idx >= 0 && combinedCounts[idx] >= handDef.size;
+        }
+        const sorted = combinedCounts.filter(c => c > 0).sort((a, b) => b - a);
+        return sorted[0] >= handDef.size;
+      }
       return false;
     }
 

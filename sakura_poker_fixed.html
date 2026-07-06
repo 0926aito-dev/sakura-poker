@@ -1780,22 +1780,25 @@ async function startCpuGame() {
   // per-seat 手役: [プレイヤー, CPU1, CPU2, CPU3]
   const perSeatCustomHands = [playerHands, ...cpuSeatHands];
   const cpuAutoHands = cpuSeatHands.flat();
+  const allCustomHands = [...playerHands, ...cpuAutoHands];
 
-  // プレイヤー自身の役スロットだけからデッキブーストを計算
-  // CPU役は含めない→デッキを小さく保ち確率を適正に維持する
+  // デッキ = 全員のオリジナル役に登場するメンバーだけ
+  const deckMemberNames = new Set();
+  for (const hand of allCustomHands) {
+    for (const slot of (hand.slots || [])) {
+      if (slot.type === "name") deckMemberNames.add(slot.value);
+    }
+  }
+  const customDeckPool = SakuraHandEngine.MEMBERS.filter(m => deckMemberNames.has(m.name));
+  // メンバーが揃っている場合のみ切り替え(フォールバック: 従来のデッキ)
+  if (customDeckPool.length >= 8) cpuDeckPool = customDeckPool;
+
+  // プレイヤー自身の役スロットからデッキブースト(name枠のみ)
   const oshimenCounts = {};
   for (const hand of playerHands) {
     for (const slot of (hand.slots || [])) {
       if (slot.type === "name") {
         oshimenCounts[slot.value] = (oshimenCounts[slot.value] || 0) + 1;
-      } else {
-        let eligible = cpuDeckPool;
-        if (slot.type === "gen") eligible = cpuDeckPool.filter(m => m.gen === slot.value);
-        else if (slot.type === "group") eligible = cpuDeckPool.filter(m => m.group === slot.value);
-        if (eligible.length > 0) {
-          const picked = eligible[Math.floor(Math.random() * eligible.length)];
-          oshimenCounts[picked.name] = (oshimenCounts[picked.name] || 0) + 1;
-        }
       }
     }
   }

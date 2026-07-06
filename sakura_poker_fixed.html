@@ -1754,9 +1754,7 @@ async function startCpuGame() {
   try {
     const cpuHandsRes = await apiCall("/api/cpu-hands", "GET");
     if (cpuHandsRes.hands && Array.isArray(cpuHandsRes.hands)) {
-      cpuSeatHands = cpuHandsRes.hands.map(seatHands =>
-        (seatHands || []).filter(h => cpuDeckPoolName === "all" || (h.poolType || "active") === "active")
-      );
+      cpuSeatHands = cpuHandsRes.hands.map(seatHands => seatHands || []);
     }
   } catch (e) { /* xlsx未設定の場合は自動生成にフォールバック */ }
 

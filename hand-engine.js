@@ -821,6 +821,8 @@
       gameOver: false,
       lastResult: null,
       featuredMember: null,
+      perSeatOshimen: [],
+      _oshimenCommunity: [],
       pendingDrawers: [],
       deckPool,
       oshimenCounts,
@@ -955,6 +957,7 @@
 
       if (table.phaseIndex === 1) {
         table.communityCards.push(dealCard(), dealCard(), dealCard());
+        for (const card of (table._oshimenCommunity || [])) table.communityCards.push(card);
         table.message = "フロップ公開！";
       } else if (table.phaseIndex === 2) {
         table.communityCards.push(dealCard());
@@ -1075,19 +1078,6 @@
     }
 
     function startPreflop() {
-      /* フィーチャードメンバーのカードをデッキ先頭(次に引かれる位置=末尾)へ移動。
-         ホールカード配布・交換フェーズが終わった後に実行するため、ここで確定させる。 */
-      if (table.featuredMember) {
-        let fIdx = -1;
-        for (let i = table.deck.length - 1; i >= 0; i--) {
-          if (table.deck[i].name === table.featuredMember) { fIdx = i; break; }
-        }
-        if (fIdx >= 0 && fIdx !== table.deck.length - 1) {
-          const [fc] = table.deck.splice(fIdx, 1);
-          table.deck.push(fc);
-        }
-      }
-
       const activeOrder = seatsInOrderFrom(table.dealerIndex, p => !p.sittingOut);
       const sbSeat = activeOrder[0];
       const bbSeat = activeOrder.length > 1 ? activeOrder[1] : activeOrder[0];
@@ -1163,24 +1153,36 @@
         if (!p.sittingOut) p.holeCards = [dealCard(), dealCard()];
       });
 
-      /* フィーチャーメンバー選出: ランダムに1名を選ぶ。デッキへの配置は startPreflop で行う。 */
-      const featuredIdx = Math.floor(Math.random() * deckPool.length);
-      table.featuredMember = deckPool[featuredIdx].name;
+      /* 各シートの推しメン(最初のnameスロットのメンバー)を収集してコミュニティカードに確約する */
+      function getSeatOshimen(seatIdx) {
+        const hands = (perSeatCustomHands && perSeatCustomHands[seatIdx]) || [];
+        for (const hand of hands) {
+          for (const slot of getHandSlots(hand)) {
+            if (slot.type === "name" && deckPool.some(m => m.name === slot.value)) return slot.value;
+          }
+        }
+        return null;
+      }
 
-      /* カード交換中にフィーチャーカードが手元に来ないようデッキ底(index 0)に移動して保護する。
-         startPreflop でデッキ末尾(次にdealされる位置)へ戻す。 */
-      for (let i = table.deck.length - 1; i >= 1; i--) {
-        if (table.deck[i].name === table.featuredMember) {
-          const [fc] = table.deck.splice(i, 1);
-          table.deck.unshift(fc);
-          break;
+      table.perSeatOshimen = table.players.map((_, i) => getSeatOshimen(i));
+      table.featuredMember = table.perSeatOshimen[0] || null;
+
+      /* 重複を除いた推しメン名のうち、まだデッキに残っているカードを1枚ずつ取り出す */
+      const uniqueOshimen = [...new Set(table.perSeatOshimen.filter(Boolean))];
+      table._oshimenCommunity = [];
+      for (const name of uniqueOshimen) {
+        const idx = table.deck.findIndex(c => c.name === name);
+        if (idx >= 0) {
+          const [card] = table.deck.splice(idx, 1);
+          table._oshimenCommunity.push(card);
         }
       }
 
       /* カード交換フェーズ: 各プレイヤーが1枚まで交換できる */
       table.handPhase = "drawing";
       table.pendingDrawers = seatsInOrderFrom(table.dealerIndex, p => !p.sittingOut);
-      table.message = `第${table.handCount}ハンド開始！★フィーチャーメンバー：${table.featuredMember}★ フロップに確定登場します。カード交換フェーズ中です。`;
+      const oshimenLabel = uniqueOshimen.length ? `★推しメン確定：${uniqueOshimen.join("・")}★ ` : "";
+      table.message = `第${table.handCount}ハンド開始！${oshimenLabel}フロップに確定登場します。カード交換フェーズ中です。`;
 
       if (table.pendingDrawers.length > 0) {
         table.turnSeat = table.pendingDrawers[0];

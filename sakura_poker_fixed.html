@@ -499,8 +499,13 @@
   .card.dealing-comm-0 { animation: dealCommIn 0.32s ease-out 0.04s both; }
   .card.dealing-comm-1 { animation: dealCommIn 0.32s ease-out 0.16s both; }
   .card.dealing-comm-2 { animation: dealCommIn 0.32s ease-out 0.28s both; }
-  .card.dealing-comm-3 { animation: dealCommIn 0.32s ease-out 0.04s both; }
-  .card.dealing-comm-4 { animation: dealCommIn 0.32s ease-out 0.04s both; }
+  .card.dealing-comm-3 { animation: dealCommIn 0.32s ease-out 0.10s both; }
+  .card.dealing-comm-4 { animation: dealCommIn 0.32s ease-out 0.20s both; }
+  .card.dealing-comm-5 { animation: dealCommIn 0.32s ease-out 0.30s both; }
+  .card.dealing-comm-6 { animation: dealCommIn 0.32s ease-out 0.40s both; }
+  .card.dealing-comm-7 { animation: dealCommIn 0.32s ease-out 0.04s both; }
+  .card.dealing-comm-8 { animation: dealCommIn 0.32s ease-out 0.04s both; }
+  .card.dealing-comm-9 { animation: dealCommIn 0.32s ease-out 0.04s both; }
 
   /* デッキ確認モーダル */
   #deckModal {
@@ -1090,9 +1095,9 @@
 
       <!-- フィーチャーメンバーバナー -->
       <div id="featuredBanner" class="featured-banner" style="display:none">
-        <span class="featured-label">✦ フィーチャーメンバー</span>
+        <span class="featured-label">✦ 推しメン確定登場</span>
         <span id="featuredMemberName" class="featured-name">-</span>
-        <span class="featured-hint">フロップに確定登場！このメンバーのオリジナル役を狙おう</span>
+        <span class="featured-hint">フロップにコミュニティカードとして確定登場します</span>
       </div>
 
       <!-- 対戦相手エリア -->
@@ -2160,6 +2165,7 @@ function buildViewModelFromLocalTable(table) {
     handDefs: table.HAND_DEFS,
     oshimenCounts: table.oshimenCounts || {},
     featuredMember: table.featuredMember || null,
+    perSeatOshimen: table.perSeatOshimen || [],
     isYourDrawTurn: table.handPhase === "drawing" && table.turnSeat === YOUR_SEAT
   };
 }
@@ -2222,9 +2228,10 @@ function renderGenericTable(vm) {
   dom.potLabel.textContent = vm.pot;
 
   // フィーチャーメンバーバナー
-  const showFeatured = vm.featuredMember && vm.handPhase !== "waiting" && vm.handPhase !== "gameover";
+  const oshimenList = (vm.perSeatOshimen || []).filter(Boolean);
+  const showFeatured = oshimenList.length > 0 && vm.handPhase !== "waiting" && vm.handPhase !== "gameover";
   dom.featuredBanner.style.display = showFeatured ? "flex" : "none";
-  if (showFeatured) dom.featuredMemberName.textContent = vm.featuredMember;
+  if (showFeatured) dom.featuredMemberName.textContent = [...new Set(oshimenList)].join(" / ");
 
   // カード交換パネル
   dom.drawPanel.style.display = vm.isYourDrawTurn ? "block" : "none";

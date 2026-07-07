@@ -74,12 +74,37 @@ if (cpuHandsFromXlsx) {
 /* 櫻坂オリジナル役用.xlsx を読み込み、全役の配列を返す。
    ヘッダー: 役名, メンバー1〜6
    各行を { id, label, slots:[{type:"name",value:...},...], poolType } に変換する。 */
+// Excel の名前表記ゆれ → エンジンの正式名に変換
+const NAME_ALIASES = {
+  '小林由衣': '小林由依',
+  '渡邊理佐': '渡邉理佐',
+  '山崎天':   '山﨑天',
+  '斎藤冬優花': '齋藤冬優花',
+  '上村莉奈': '上村莉菜',
+  '井上梨奈': '井上梨名',
+  '中川知尋': '中川 智尋',
+};
+
+function normalizeMemberName(raw, allMembers) {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.startsWith('ワイルドカード')) return null; // skip wildcards
+  if (NAME_ALIASES[trimmed]) return NAME_ALIASES[trimmed];
+  // exact match
+  const allNames = new Set(allMembers.map(m => m.name));
+  if (allNames.has(trimmed)) return trimmed;
+  // try removing spaces (4期 members have a space in their name)
+  const noSpace = trimmed.replace(/\s+/g, '');
+  for (const m of allMembers) {
+    if (m.name.replace(/\s+/g, '') === noSpace) return m.name;
+  }
+  return null;
+}
+
 function loadSakuraOriginalHands() {
   if (!fs.existsSync(SAKURA_ORIGINAL_XLSX)) return [];
   try {
     const { MEMBERS: ALL_MEMBERS, ACTIVE_MEMBERS } = SakuraHandEngine;
     const activeNames = new Set((ACTIVE_MEMBERS || []).map(m => m.name));
-    const allNames = new Set((ALL_MEMBERS || []).map(m => m.name));
     const wb = XLSX.readFile(SAKURA_ORIGINAL_XLSX);
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
@@ -90,9 +115,10 @@ function loadSakuraOriginalHands() {
       if (!label) continue;
       const slots = [];
       for (let c = 1; c <= 6; c++) {
-        const name = String(row[c] || "").trim();
-        if (!name) continue;
-        if (!allNames.has(name)) continue; // skip unknown names
+        const raw = String(row[c] || "").trim();
+        if (!raw) continue;
+        const name = normalizeMemberName(raw, ALL_MEMBERS);
+        if (!name) continue; // unknown or wildcard → skip slot
         slots.push({ type: "name", value: name });
       }
       if (slots.length < 2) continue;

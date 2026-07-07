@@ -399,13 +399,28 @@ async function handleApi(req, res, pathname, query) {
   try {
     if (pathname === "/api/cpu-hands" && req.method === "GET") {
       if (sakuraOriginalHands.length > 0) {
-        // distribute to 4 seats (player=0, CPU1=1, CPU2=2, CPU3=3)
-        const shuffled = [...sakuraOriginalHands].sort(() => Math.random() - 0.5);
+        // 枚数(2〜6)ごとにグループ化してシャッフル
+        const bySize = {};
+        for (const h of sakuraOriginalHands) {
+          const sz = h.slots.length;
+          if (!bySize[sz]) bySize[sz] = [];
+          bySize[sz].push(h);
+        }
+        // 各グループをシャッフル
+        for (const sz of Object.keys(bySize)) {
+          bySize[sz].sort(() => Math.random() - 0.5);
+        }
+        // 4席それぞれに 2/3/4/5/6枚役を1つずつ割り当て
+        const SIZES = [2, 3, 4, 5, 6];
         const perSeat = [[], [], [], []];
-        shuffled.forEach((h, i) => {
-          const seat = i % 4;
-          perSeat[seat].push({ ...h, id: `${h.id}_s${seat}` });
-        });
+        for (let seat = 0; seat < 4; seat++) {
+          for (const sz of SIZES) {
+            const pool = bySize[sz];
+            if (!pool || pool.length === 0) continue;
+            const h = pool[seat % pool.length]; // 足りない場合は使い回し
+            perSeat[seat].push({ ...h, id: `${h.id}_s${seat}` });
+          }
+        }
         return sendJson(res, 200, { hands: perSeat });
       }
       return sendJson(res, 200, { hands: cpuHandsFromXlsx });

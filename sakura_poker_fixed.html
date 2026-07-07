@@ -1765,21 +1765,22 @@ async function startCpuGame() {
   let playerHands = allSeatHands[0];
   let cpuSeatHands = allSeatHands.slice(1, 4); // [cpu1, cpu2, cpu3]
 
-  // xlsx に役が無い席は自動生成で補完(ワイルドカード不使用・全枠名前)
+  // xlsx に役が無い席は自動生成で補完(ワイルドカード不使用・2〜6枚各1役)
   const shuffledForCpu = SakuraHandEngine.shuffle([...cpuDeckPool]);
   for (let cpuIdx = 0; cpuIdx < 3; cpuIdx++) {
     if (cpuSeatHands[cpuIdx].length > 0) continue;
-    for (let size = 2; size <= 5; size++) {
-      const base = cpuIdx * 10 + size;
+    for (let size = 2; size <= 6; size++) {
+      const base = cpuIdx * 20 + size;
+      const picked = new Set();
       const members = [];
-      for (let i = 0; i < size; i++) {
-        members.push(shuffledForCpu[(base + i) % shuffledForCpu.length]);
+      for (let i = 0; members.length < size; i++) {
+        const m = shuffledForCpu[(base + i) % shuffledForCpu.length];
+        if (!picked.has(m.name)) { picked.add(m.name); members.push(m); }
+        if (i > shuffledForCpu.length * 2) break; // 無限ループ防止
       }
       const slots = members.map(m => ({ type: "name", value: m.name }));
-      if (SakuraHandEngine.isValidSlotsForPool(slots, poolType)) {
-        const label = members.map(m => m.name).join("・");
-        cpuSeatHands[cpuIdx].push({ id: `_cpu${cpuIdx + 1}_s${size}`, label, slots, poolType });
-      }
+      const label = members.map(m => m.name).join("・");
+      cpuSeatHands[cpuIdx].push({ id: `_cpu${cpuIdx + 1}_s${size}`, label, slots, poolType });
     }
   }
 

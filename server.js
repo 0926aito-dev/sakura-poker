@@ -373,11 +373,14 @@ async function handleApi(req, res, pathname, query) {
   try {
     if (pathname === "/api/cpu-hands" && req.method === "GET") {
       if (sakuraOriginalHands.length > 0) {
-        // shuffle and distribute sakura original hands evenly across 3 CPUs
+        // distribute to 4 seats (player=0, CPU1=1, CPU2=2, CPU3=3)
         const shuffled = [...sakuraOriginalHands].sort(() => Math.random() - 0.5);
-        const perCpu = [[], [], []];
-        shuffled.forEach((h, i) => perCpu[i % 3].push({ ...h, id: `${h.id}_cpu${i % 3 + 1}` }));
-        return sendJson(res, 200, { hands: perCpu });
+        const perSeat = [[], [], [], []];
+        shuffled.forEach((h, i) => {
+          const seat = i % 4;
+          perSeat[seat].push({ ...h, id: `${h.id}_s${seat}` });
+        });
+        return sendJson(res, 200, { hands: perSeat });
       }
       return sendJson(res, 200, { hands: cpuHandsFromXlsx });
     }

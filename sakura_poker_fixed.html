@@ -1750,19 +1750,20 @@ async function startCpuGame() {
 
   cpuDeckPool = SakuraHandEngine.DECKS[cpuDeckPoolName] || SakuraHandEngine.ACTIVE_MEMBERS;
 
-  // プレイヤーのオリジナル役(デッキ種別フィルタ済み)
-  const playerHands = myHands.filter(h => cpuDeckPoolName === "all" || (h.poolType || "active") === "active");
-
-  // CPU役: サーバーの cpu_hands.xlsx 設定を優先、なければ自動生成
+  // 全席の役を 櫻坂オリジナル役用.xlsx から取得(seat0=プレイヤー, seat1〜3=CPU)
   const poolType = cpuDeckPoolName === "all" ? "all" : "active";
-  let cpuSeatHands = [[], [], []];
+  let allSeatHands = [[], [], [], []]; // [player, cpu1, cpu2, cpu3]
 
   try {
     const cpuHandsRes = await apiCall("/api/cpu-hands", "GET");
     if (cpuHandsRes.hands && Array.isArray(cpuHandsRes.hands)) {
-      cpuSeatHands = cpuHandsRes.hands.map(seatHands => seatHands || []);
+      allSeatHands = cpuHandsRes.hands.map(seatHands => seatHands || []);
+      while (allSeatHands.length < 4) allSeatHands.push([]);
     }
   } catch (e) { /* xlsx未設定の場合は自動生成にフォールバック */ }
+
+  let playerHands = allSeatHands[0];
+  let cpuSeatHands = allSeatHands.slice(1, 4); // [cpu1, cpu2, cpu3]
 
   // xlsx に役が無い席は自動生成で補完
   const shuffledForCpu = SakuraHandEngine.shuffle([...cpuDeckPool]);

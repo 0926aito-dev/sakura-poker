@@ -1788,28 +1788,10 @@ async function startCpuGame() {
   // per-seat 手役: [プレイヤー, CPU1, CPU2, CPU3]
   const perSeatCustomHands = [playerHands, ...cpuSeatHands];
   const cpuAutoHands = cpuSeatHands.flat();
-  const allCustomHands = [...playerHands, ...cpuAutoHands];
 
-  // デッキ = 全員のオリジナル役に登場するメンバーだけ
-  const deckMemberNames = new Set();
-  for (const hand of allCustomHands) {
-    for (const slot of (hand.slots || [])) {
-      if (slot.type === "name") deckMemberNames.add(slot.value);
-    }
-  }
-  const customDeckPool = SakuraHandEngine.MEMBERS.filter(m => deckMemberNames.has(m.name));
-  // メンバーが揃っている場合のみ切り替え(フォールバック: 従来のデッキ)
-  if (customDeckPool.length >= 8) cpuDeckPool = customDeckPool;
-
-  // プレイヤー自身の役スロットからデッキブースト(name枠のみ)
+  // デッキは全在籍メンバー(枚数不足防止)
+  // oshimenCounts は使わない(デッキを膨らませない)
   const oshimenCounts = {};
-  for (const hand of playerHands) {
-    for (const slot of (hand.slots || [])) {
-      if (slot.type === "name") {
-        oshimenCounts[slot.value] = (oshimenCounts[slot.value] || 0) + 1;
-      }
-    }
-  }
 
   cpuTable = SakuraHandEngine.createTable({
     playerNames: [myUsername, "CPU 1", "CPU 2", "CPU 3"],

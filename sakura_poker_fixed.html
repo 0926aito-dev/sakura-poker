@@ -2293,14 +2293,14 @@ function renderGenericTable(vm) {
         : "";
 
     const devHandsHtml = (seat.devOriginalHands && seat.devOriginalHands.length)
-      ? `<div style="font-size:9px;color:rgba(255,200,80,0.75);margin:2px 0;line-height:1.4;text-align:left;">`
+      ? `<div style="font-size:9px;color:rgba(255,200,80,0.8);margin:2px 0;line-height:1.5;text-align:left;max-height:120px;overflow-y:auto;border-top:1px solid rgba(255,200,80,0.2);padding-top:2px;">`
+        + `<div style="color:rgba(255,200,80,0.5);margin-bottom:1px;">役(${seat.devOriginalHands.length}件)</div>`
         + seat.devOriginalHands.map(h => {
-            const slots = (h.slots || []).map(s =>
-              s.type === "name" ? escapeHTML(s.value) :
-              s.type === "wild" ? "?" :
-              s.type === "gen" ? `${s.value}期` : "?"
-            ).join(" ");
-            return `<div>▸${escapeHTML(h.label)}[${slots}]</div>`;
+            const members = (h.slots || [])
+              .filter(s => s.type === "name")
+              .map(s => escapeHTML(s.value))
+              .join("・");
+            return `<div>▸${escapeHTML(h.label)}${members ? `<span style="color:rgba(255,255,255,0.5)">[${members}]</span>` : ""}</div>`;
           }).join("")
         + `</div>`
       : "";
